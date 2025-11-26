@@ -35,7 +35,11 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, onChangeV
       {/* Sidebar */}
       <aside className="w-64 bg-white border-r border-slate-200 flex-shrink-0 flex flex-col shadow-sm z-10 hidden md:flex">
         <div className="h-16 flex items-center px-6 border-b border-slate-100">
-          <span className="material-icons-round text-teal-600 text-3xl mr-2">local_hospital</span>
+          <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center mr-3 shadow-sm border-2 border-green-800 shrink-0">
+             <svg className="w-6 h-6 text-red-600 drop-shadow-sm" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="4">
+               <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+             </svg>
+          </div>
           <h1 className="text-xl font-bold text-slate-800 tracking-tight">MClaim <span className="text-teal-600">Manajer</span></h1>
         </div>
 
@@ -109,7 +113,11 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, onChangeV
         {/* Mobile Header */}
         <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 md:hidden shrink-0">
            <div className="flex items-center">
-             <span className="material-icons-round text-teal-600 text-2xl mr-2">local_hospital</span>
+             <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center mr-3 border-2 border-green-800 shrink-0 shadow-sm">
+                <svg className="w-6 h-6 text-red-600 drop-shadow-sm" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="4">
+                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                </svg>
+             </div>
              <span className="font-bold text-lg">MClaim Manajer</span>
            </div>
            <button className="p-2 text-slate-500">

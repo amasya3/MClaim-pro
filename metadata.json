@@ -1,0 +1,5 @@
+{
+  "name": "Copy of MediClaim Pro - INA-CBGs Manager",
+  "description": "A comprehensive patient management system designed for Indonesian healthcare professionals. Features intelligent INA-CBGs code suggestions and automated document completeness checklists using Gemini AI.",
+  "requestFramePermissions": []
+}

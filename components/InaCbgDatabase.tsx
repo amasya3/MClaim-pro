@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { INACBGTemplate } from '../types';
 
@@ -22,6 +23,7 @@ export const InaCbgDatabase: React.FC<InaCbgDatabaseProps> = ({
   const [code, setCode] = useState('');
   const [description, setDescription] = useState('');
   const [severity, setSeverity] = useState<'I' | 'II' | 'III'>('I');
+  const [tariff, setTariff] = useState<string>('');
   const [documents, setDocuments] = useState<string[]>([]);
   const [newDocInput, setNewDocInput] = useState('');
 
@@ -30,10 +32,16 @@ export const InaCbgDatabase: React.FC<InaCbgDatabaseProps> = ({
     t.description.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  const formatCurrency = (amount?: number) => {
+    if (amount === undefined || amount === null) return '-';
+    return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(amount);
+  };
+
   const resetForm = () => {
     setCode('');
     setDescription('');
     setSeverity('I');
+    setTariff('');
     setDocuments(['Surat Elegibilitas Peserta (SEP)', 'Resume Medis']); // Default minimal
     setNewDocInput('');
     setEditingId(null);
@@ -48,6 +56,7 @@ export const InaCbgDatabase: React.FC<InaCbgDatabaseProps> = ({
     setCode(template.code);
     setDescription(template.description);
     setSeverity(template.severity);
+    setTariff(template.tariff ? template.tariff.toString() : '');
     setDocuments([...template.requiredDocuments]);
     setNewDocInput('');
     setEditingId(template.id);
@@ -76,6 +85,7 @@ export const InaCbgDatabase: React.FC<InaCbgDatabaseProps> = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const finalDocs = newDocInput.trim() ? [...documents, newDocInput.trim()] : documents;
+    const finalTariff = tariff ? parseFloat(tariff) : undefined;
 
     if (editingId) {
         onUpdateTemplate({
@@ -83,6 +93,7 @@ export const InaCbgDatabase: React.FC<InaCbgDatabaseProps> = ({
             code,
             description,
             severity,
+            tariff: finalTariff,
             requiredDocuments: finalDocs
         });
     } else {
@@ -91,6 +102,7 @@ export const InaCbgDatabase: React.FC<InaCbgDatabaseProps> = ({
             code,
             description,
             severity,
+            tariff: finalTariff,
             requiredDocuments: finalDocs
         });
     }
@@ -101,8 +113,8 @@ export const InaCbgDatabase: React.FC<InaCbgDatabaseProps> = ({
     <div className="max-w-7xl mx-auto space-y-6">
        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-slate-800">Database INA-CBGs</h2>
-          <p className="text-slate-500">Kelola master data kode dan standar kelengkapan berkas.</p>
+          <h2 className="text-2xl font-bold text-slate-800">Database INA-CBGs & Tarif</h2>
+          <p className="text-slate-500">Master data kode, checklist berkas, dan standar tarif RS Kelas D.</p>
         </div>
         <button 
           onClick={handleOpenAdd}
@@ -135,8 +147,16 @@ export const InaCbgDatabase: React.FC<InaCbgDatabaseProps> = ({
                         Severity {template.severity}
                     </span>
                 </div>
-                <h3 className="font-semibold text-slate-800 mb-4 line-clamp-2 min-h-[3rem]">{template.description}</h3>
+                <h3 className="font-semibold text-slate-800 mb-2 line-clamp-2 min-h-[3rem]">{template.description}</h3>
                 
+                {/* Cost Section */}
+                <div className="mb-4 bg-slate-50 p-2 rounded-lg border border-slate-100">
+                   <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-1">Tarif RS Kelas D</p>
+                   <p className="text-lg font-bold text-slate-700 font-mono">
+                      {formatCurrency(template.tariff)}
+                   </p>
+                </div>
+
                 <div className="flex-1 mb-4">
                     <p className="text-xs text-slate-500 font-medium mb-2 uppercase tracking-wide">Kelengkapan Wajib:</p>
                     <ul className="text-sm text-slate-600 space-y-1">
@@ -157,7 +177,7 @@ export const InaCbgDatabase: React.FC<InaCbgDatabaseProps> = ({
                         onClick={() => handleOpenEdit(template)}
                         className="text-xs font-medium text-slate-500 hover:text-teal-600 px-3 py-1.5 rounded hover:bg-teal-50 transition-colors"
                     >
-                        Edit Berkas
+                        Edit Data
                     </button>
                     <button 
                         onClick={() => handleDelete(template)}
@@ -201,6 +221,20 @@ export const InaCbgDatabase: React.FC<InaCbgDatabaseProps> = ({
                         <div>
                             <label className="block text-sm font-medium text-slate-700 mb-1">Deskripsi</label>
                             <textarea required rows={2} value={description} onChange={e => setDescription(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none resize-none" placeholder="Deskripsi lengkap penyakit..." />
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-1">Standar Tarif (RS Kelas D)</label>
+                            <div className="relative">
+                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-sm">Rp</span>
+                                <input 
+                                    type="number" 
+                                    value={tariff} 
+                                    onChange={e => setTariff(e.target.value)} 
+                                    className="w-full pl-10 pr-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none" 
+                                    placeholder="0" 
+                                />
+                            </div>
                         </div>
 
                         <div>

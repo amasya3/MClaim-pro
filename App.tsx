@@ -1,9 +1,11 @@
+
 import React, { useState } from 'react';
 import { Layout } from './components/Layout';
 import { Dashboard } from './components/Dashboard';
 import { PatientList } from './components/PatientList';
 import { PatientDetail } from './components/PatientDetail';
 import { InaCbgDatabase } from './components/InaCbgDatabase';
+import { CostControl } from './components/CostControl';
 import { Patient, ViewState, PatientStatus, Gender, INACBGTemplate } from './types';
 
 // Mock Data Initialization
@@ -17,6 +19,10 @@ const initialPatients: Patient[] = [
     dob: '1975-05-20',
     status: PatientStatus.ADMITTED,
     lastVisit: '2023-10-25',
+    admissionDate: '2023-10-25',
+    roomNumber: 'Anggrek 301',
+    billingAmount: 4500000,
+    inaCbgAmount: 5200000,
     diagnoses: [
         {
             id: 'd1',
@@ -43,6 +49,10 @@ const initialPatients: Patient[] = [
     dob: '1982-11-12',
     status: PatientStatus.OUTPATIENT,
     lastVisit: '2023-10-24',
+    admissionDate: '2023-10-24',
+    roomNumber: 'Poli Penyakit Dalam',
+    billingAmount: 180000,
+    inaCbgAmount: 180000,
     diagnoses: []
   },
   {
@@ -54,6 +64,10 @@ const initialPatients: Patient[] = [
     dob: '1960-01-01',
     status: PatientStatus.ADMITTED,
     lastVisit: '2023-10-20',
+    admissionDate: '2023-10-20',
+    roomNumber: 'Melati VIP B',
+    billingAmount: 8750000,
+    inaCbgAmount: 7500000,
     diagnoses: [
        {
             id: 'd2',
@@ -77,6 +91,7 @@ const initialTemplates: INACBGTemplate[] = [
         code: 'J45.9',
         description: 'Asma bronkial, tidak spesifik (Bronchial Asthma)',
         severity: 'I',
+        tariff: 4200000,
         requiredDocuments: [
             'Surat Elegibilitas Peserta (SEP)',
             'Resume Medis',
@@ -89,6 +104,7 @@ const initialTemplates: INACBGTemplate[] = [
         code: 'E11.9',
         description: 'Diabetes melitus tipe 2 tanpa komplikasi',
         severity: 'II',
+        tariff: 5850000,
         requiredDocuments: [
             'Surat Elegibilitas Peserta (SEP)',
             'Resume Medis',
@@ -160,6 +176,14 @@ const App: React.FC = () => {
           onAddPatient={handleAddPatient}
           onUpdatePatientDetails={handleUpdatePatientDetails}
           onDeletePatient={handleDeletePatient}
+        />
+      )}
+
+      {view === 'COST_CONTROL' && (
+        <CostControl
+          patients={patients}
+          cbgTemplates={cbgTemplates}
+          onUpdateCost={handleUpdatePatientDetails}
         />
       )}
 

@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { ViewState } from '../types';
 
@@ -15,6 +16,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, onChangeV
   const navItems = [
     { id: 'DASHBOARD', label: 'Dashboard', icon: 'dashboard' },
     { id: 'PATIENTS', label: 'Manajemen Pasien', icon: 'people' },
+    { id: 'COST_CONTROL', label: 'Cost Control', icon: 'request_quote' },
     { id: 'CBG_DATABASE', label: 'Database INA-CBGs', icon: 'library_books' },
   ];
 
@@ -35,8 +37,8 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, onChangeV
       {/* Sidebar */}
       <aside className="w-64 bg-white border-r border-slate-200 flex-shrink-0 flex flex-col shadow-sm z-10 hidden md:flex">
         <div className="h-16 flex items-center px-6 border-b border-slate-100">
-          <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center mr-3 shadow-sm border-2 border-green-800 shrink-0">
-             <svg className="w-6 h-6 text-red-600 drop-shadow-sm" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="4">
+          <div className="w-10 h-10 bg-green-600 rounded-full flex items-center justify-center mr-3 shadow-sm border-2 border-green-800 shrink-0">
+             <svg className="w-6 h-6 text-white drop-shadow-sm" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="6">
                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
              </svg>
           </div>
@@ -113,8 +115,8 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, onChangeV
         {/* Mobile Header */}
         <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 md:hidden shrink-0">
            <div className="flex items-center">
-             <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center mr-3 border-2 border-green-800 shrink-0 shadow-sm">
-                <svg className="w-6 h-6 text-red-600 drop-shadow-sm" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="4">
+             <div className="w-10 h-10 bg-green-600 rounded-full flex items-center justify-center mr-3 border-2 border-green-800 shrink-0 shadow-sm">
+                <svg className="w-6 h-6 text-white drop-shadow-sm" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="6">
                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
                 </svg>
              </div>

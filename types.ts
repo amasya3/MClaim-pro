@@ -1,3 +1,4 @@
+
 export enum PatientStatus {
   ADMITTED = 'Rawat Inap',
   OUTPATIENT = 'Rawat Jalan',
@@ -36,6 +37,10 @@ export interface Patient {
   status: PatientStatus;
   diagnoses: Diagnosis[];
   lastVisit: string;
+  admissionDate?: string;
+  roomNumber?: string;
+  billingAmount?: number;
+  inaCbgAmount?: number;
 }
 
 export interface INACBGResponse {
@@ -51,6 +56,7 @@ export interface INACBGTemplate {
   description: string;
   severity: 'I' | 'II' | 'III';
   requiredDocuments: string[];
+  tariff?: number; // Standard tariff for Class D Hospital
 }
 
-export type ViewState = 'DASHBOARD' | 'PATIENTS' | 'PATIENT_DETAIL' | 'CBG_DATABASE';
+export type ViewState = 'DASHBOARD' | 'PATIENTS' | 'PATIENT_DETAIL' | 'CBG_DATABASE' | 'COST_CONTROL';

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Patient, PatientStatus, Gender } from '../types';
 
@@ -23,10 +24,10 @@ export const PatientList: React.FC<PatientListProps> = ({
   
   // Form State
   const [name, setName] = useState('');
-  const [mrn, setMrn] = useState('');
-  const [bpjs, setBpjs] = useState('');
   const [gender, setGender] = useState<Gender>(Gender.MALE);
   const [status, setStatus] = useState<PatientStatus>(PatientStatus.ADMITTED);
+  const [admissionDate, setAdmissionDate] = useState('');
+  const [roomNumber, setRoomNumber] = useState('');
 
   // Filter logic based on Tab + Search
   const filteredPatients = patients.filter(p => {
@@ -39,16 +40,17 @@ export const PatientList: React.FC<PatientListProps> = ({
     return (
         p.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
         p.mrn.includes(searchTerm) ||
-        p.bpjsNumber.includes(searchTerm)
+        p.bpjsNumber.includes(searchTerm) ||
+        (p.roomNumber && p.roomNumber.toLowerCase().includes(searchTerm.toLowerCase()))
     );
   });
 
   const resetForm = () => {
     setName('');
-    setMrn('');
-    setBpjs('');
     setGender(Gender.MALE);
     setStatus(PatientStatus.ADMITTED);
+    setAdmissionDate(new Date().toISOString().split('T')[0]);
+    setRoomNumber('');
     setEditingId(null);
   };
 
@@ -60,10 +62,10 @@ export const PatientList: React.FC<PatientListProps> = ({
   const handleOpenEdit = (patient: Patient, e: React.MouseEvent) => {
     e.stopPropagation();
     setName(patient.name);
-    setMrn(patient.mrn);
-    setBpjs(patient.bpjsNumber);
     setGender(patient.gender);
     setStatus(patient.status);
+    setAdmissionDate(patient.admissionDate || new Date().toISOString().split('T')[0]);
+    setRoomNumber(patient.roomNumber || '');
     setEditingId(patient.id);
     setIsModalOpen(true);
   };
@@ -85,30 +87,57 @@ export const PatientList: React.FC<PatientListProps> = ({
             const updatedPatient: Patient = {
                 ...originalPatient,
                 name,
-                mrn,
-                bpjsNumber: bpjs,
+                // Preserve original MRN and BPJS since they are removed from form
+                mrn: originalPatient.mrn, 
+                bpjsNumber: originalPatient.bpjsNumber,
                 gender,
-                status
+                status,
+                admissionDate,
+                roomNumber
             };
             onUpdatePatientDetails(updatedPatient);
         }
     } else {
         // Create new
+        const autoMrn = `RM-${Math.floor(Math.random() * 99)}-${Math.floor(Math.random() * 999)}`;
+        
         const newPatient: Patient = {
             id: crypto.randomUUID(),
             name,
-            mrn,
-            bpjsNumber: bpjs,
+            mrn: autoMrn,
+            bpjsNumber: '-',
             gender,
             dob: '1980-01-01', // Mock default
             status,
             diagnoses: [],
             lastVisit: new Date().toISOString(),
+            admissionDate,
+            roomNumber
         };
         onAddPatient(newPatient);
     }
     setIsModalOpen(false);
     resetForm();
+  };
+
+  const calculateLengthOfStay = (startDate?: string, endDate?: string, isDischarged: boolean = false) => {
+    if (!startDate) return '-';
+    
+    const start = new Date(startDate);
+    // If discharged, use lastVisit/discharge date, otherwise use Today
+    const end = isDischarged && endDate ? new Date(endDate) : new Date();
+    
+    // Normalize to midnight to calculate pure days
+    start.setHours(0, 0, 0, 0);
+    end.setHours(0, 0, 0, 0);
+    
+    const diffTime = end.getTime() - start.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    // Count the admission day as day 1
+    const totalDays = Math.max(1, diffDays + 1);
+    
+    return `${totalDays} Hari`;
   };
 
   return (
@@ -157,7 +186,7 @@ export const PatientList: React.FC<PatientListProps> = ({
             <span className="material-icons-round absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">search</span>
             <input 
                 type="text" 
-                placeholder="Cari nama, No. RM, atau BPJS..." 
+                placeholder="Cari nama, No. RM, BPJS, atau Kamar..." 
                 className="w-full sm:w-80 pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition-all bg-white"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
@@ -172,14 +201,15 @@ export const PatientList: React.FC<PatientListProps> = ({
                 <thead>
                     <tr className="bg-slate-50 border-b border-slate-200 text-xs uppercase text-slate-500 font-semibold tracking-wider">
                         <th className="px-6 py-4">Pasien</th>
-                        <th className="px-6 py-4">No. RM / BPJS</th>
-                        <th className="px-6 py-4">Status</th>
-                        <th className="px-6 py-4">Diagnosis Terakhir</th>
+                        <th className="px-4 py-4">Lama Rawat / Kamar</th>
+                        <th className="px-4 py-4">Status</th>
+                        <th className="px-4 py-4">Diagnosis</th>
                         <th className="px-6 py-4 text-right">Aksi</th>
                     </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                    {filteredPatients.map((patient) => (
+                    {filteredPatients.map((patient) => {
+                        return (
                         <tr key={patient.id} className="hover:bg-slate-50 transition-colors group cursor-pointer" onClick={() => onSelectPatient(patient)}>
                             <td className="px-6 py-4">
                                 <div className="flex items-center gap-3">
@@ -190,15 +220,24 @@ export const PatientList: React.FC<PatientListProps> = ({
                                     </div>
                                     <div>
                                         <div className="font-semibold text-slate-800">{patient.name}</div>
-                                        <div className="text-xs text-slate-500">{patient.gender}</div>
+                                        <div className="text-xs text-slate-500">{patient.mrn}</div>
                                     </div>
                                 </div>
                             </td>
-                            <td className="px-6 py-4">
-                                <div className="text-sm text-slate-800 font-medium">{patient.mrn}</div>
-                                <div className="text-xs text-slate-500">{patient.bpjsNumber}</div>
+                            <td className="px-4 py-4">
+                                <div className="text-sm text-teal-700 font-bold mb-0.5">
+                                    {calculateLengthOfStay(patient.admissionDate, patient.lastVisit, patient.status === PatientStatus.DISCHARGED)}
+                                </div>
+                                <div className="text-xs text-slate-500 font-medium">
+                                    {patient.roomNumber ? (
+                                        <span className="flex items-center gap-1">
+                                            <span className="material-icons-round text-[10px]">meeting_room</span>
+                                            {patient.roomNumber}
+                                        </span>
+                                    ) : '-'}
+                                </div>
                             </td>
-                            <td className="px-6 py-4">
+                            <td className="px-4 py-4">
                                 <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border
                                     ${patient.status === PatientStatus.ADMITTED ? 'bg-blue-50 text-blue-700 border-blue-100' : 
                                       patient.status === PatientStatus.OUTPATIENT ? 'bg-purple-50 text-purple-700 border-purple-100' : 
@@ -206,7 +245,7 @@ export const PatientList: React.FC<PatientListProps> = ({
                                     {patient.status}
                                 </span>
                             </td>
-                            <td className="px-6 py-4">
+                            <td className="px-4 py-4">
                                 {patient.diagnoses.length > 0 ? (
                                     <div className="max-w-xs">
                                         <div className="text-sm text-slate-800 truncate" title={patient.diagnoses[0].description}>
@@ -217,7 +256,7 @@ export const PatientList: React.FC<PatientListProps> = ({
                                         </div>
                                     </div>
                                 ) : (
-                                    <span className="text-sm text-slate-400 italic">Belum ada diagnosis</span>
+                                    <span className="text-sm text-slate-400 italic">Belum ada</span>
                                 )}
                             </td>
                             <td className="px-6 py-4 text-right">
@@ -239,7 +278,7 @@ export const PatientList: React.FC<PatientListProps> = ({
                                 </div>
                             </td>
                         </tr>
-                    ))}
+                    )})}
                     {filteredPatients.length === 0 && (
                         <tr>
                             <td colSpan={5} className="px-6 py-12 text-center text-slate-400">
@@ -258,23 +297,25 @@ export const PatientList: React.FC<PatientListProps> = ({
       {/* Add/Edit Patient Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
-            <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 animate-fade-in">
+            <div className="bg-white rounded-2xl shadow-xl max-w-lg w-full p-6 animate-fade-in max-h-[90vh] overflow-y-auto">
                 <h3 className="text-lg font-bold text-slate-800 mb-4">{editingId ? 'Edit Data Pasien' : 'Tambah Pasien Baru'}</h3>
                 <form onSubmit={handleSubmit} className="space-y-4">
                     <div>
                         <label className="block text-sm font-medium text-slate-700 mb-1">Nama Lengkap</label>
                         <input required type="text" value={name} onChange={e => setName(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none" placeholder="Contoh: Budi Santoso" />
                     </div>
+
                     <div className="grid grid-cols-2 gap-4">
-                        <div>
-                            <label className="block text-sm font-medium text-slate-700 mb-1">No. RM</label>
-                            <input required type="text" value={mrn} onChange={e => setMrn(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none" placeholder="00-00-00" />
+                         <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-1">Tanggal Masuk</label>
+                            <input type="date" value={admissionDate} onChange={e => setAdmissionDate(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none" />
                         </div>
                         <div>
-                            <label className="block text-sm font-medium text-slate-700 mb-1">No. BPJS</label>
-                            <input required type="text" value={bpjs} onChange={e => setBpjs(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none" placeholder="000123..." />
+                            <label className="block text-sm font-medium text-slate-700 mb-1">Kamar / Poli</label>
+                            <input type="text" value={roomNumber} onChange={e => setRoomNumber(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none" placeholder="Contoh: Anggrek 301" />
                         </div>
                     </div>
+
                     <div className="grid grid-cols-2 gap-4">
                         <div>
                             <label className="block text-sm font-medium text-slate-700 mb-1">Jenis Kelamin</label>
@@ -292,7 +333,7 @@ export const PatientList: React.FC<PatientListProps> = ({
                             </select>
                         </div>
                     </div>
-                    <div className="flex gap-3 pt-4">
+                    <div className="flex gap-3 pt-4 border-t border-slate-100 mt-2">
                         <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 font-medium">Batal</button>
                         <button type="submit" className="flex-1 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 font-medium">Simpan</button>
                     </div>

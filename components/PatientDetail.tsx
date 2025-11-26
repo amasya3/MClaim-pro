@@ -1,27 +1,53 @@
 import React, { useState } from 'react';
-import { Patient, Diagnosis, DocumentItem } from '../types';
-import { suggestDiagnosisAndDocs } from '../services/geminiService';
+import { Patient, Diagnosis, DocumentItem, INACBGTemplate } from '../types';
+import { analyzeDiagnosisCode } from '../services/geminiService';
 
 interface PatientDetailProps {
   patient: Patient;
   onBack: () => void;
   onUpdatePatient: (updatedPatient: Patient) => void;
+  cbgTemplates: INACBGTemplate[];
 }
 
-export const PatientDetail: React.FC<PatientDetailProps> = ({ patient, onBack, onUpdatePatient }) => {
+export const PatientDetail: React.FC<PatientDetailProps> = ({ patient, onBack, onUpdatePatient, cbgTemplates }) => {
   const [activeTab, setActiveTab] = useState<'overview' | 'diagnosis'>('diagnosis');
-  const [clinicalNotes, setClinicalNotes] = useState('');
+  
+  // Form State
+  const [inputCode, setInputCode] = useState('');
+  const [inputDescription, setInputDescription] = useState('');
+  
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
 
-  const handleAiAnalysis = async () => {
-    if (!clinicalNotes.trim()) return;
+  const handleProcessDiagnosis = async () => {
+    if (!inputCode.trim()) return;
     setIsAnalyzing(true);
     setAiError(null);
     try {
-        const result = await suggestDiagnosisAndDocs(clinicalNotes);
+        let codeResult: { code: string; description: string; severity: 'I'|'II'|'III'; requiredDocuments: string[] };
+        let sourceNote = '';
+
+        // 1. Check Local Database First
+        const normalizedInput = inputCode.trim().toUpperCase();
+        const localTemplate = cbgTemplates.find(t => t.code === normalizedInput);
+
+        if (localTemplate) {
+            // Use Local DB
+            codeResult = {
+                code: localTemplate.code,
+                description: localTemplate.description,
+                severity: localTemplate.severity,
+                requiredDocuments: localTemplate.requiredDocuments
+            };
+            sourceNote = 'Verifikasi Database Internal';
+        } else {
+            // 2. Fallback to AI Service
+            const aiResult = await analyzeDiagnosisCode(normalizedInput, inputDescription);
+            codeResult = aiResult;
+            sourceNote = 'Generated via AI Assistant';
+        }
         
-        const newChecklist: DocumentItem[] = result.requiredDocuments.map((doc, idx) => ({
+        const newChecklist: DocumentItem[] = codeResult.requiredDocuments.map((doc, idx) => ({
             id: `doc-${Date.now()}-${idx}`,
             name: doc,
             isChecked: false,
@@ -30,12 +56,12 @@ export const PatientDetail: React.FC<PatientDetailProps> = ({ patient, onBack, o
 
         const newDiagnosis: Diagnosis = {
             id: crypto.randomUUID(),
-            description: result.description,
-            code: result.code,
-            severity: result.severity,
+            description: inputDescription || codeResult.description, // Use user input if provided, else Result
+            code: codeResult.code,
+            severity: codeResult.severity,
             timestamp: new Date().toISOString(),
             checklist: newChecklist,
-            notes: clinicalNotes
+            notes: sourceNote
         };
 
         const updatedPatient = {
@@ -43,9 +69,12 @@ export const PatientDetail: React.FC<PatientDetailProps> = ({ patient, onBack, o
             diagnoses: [newDiagnosis, ...patient.diagnoses]
         };
         onUpdatePatient(updatedPatient);
-        setClinicalNotes(''); // Clear input
+        
+        // Reset form
+        setInputCode('');
+        setInputDescription('');
     } catch (err) {
-        setAiError("Gagal menganalisis. Pastikan API Key valid dan coba lagi.");
+        setAiError("Gagal memproses kode. Pastikan koneksi internet lancar dan kode valid.");
     } finally {
         setIsAnalyzing(false);
     }
@@ -86,33 +115,51 @@ export const PatientDetail: React.FC<PatientDetailProps> = ({ patient, onBack, o
       <div className="flex gap-6 flex-1 min-h-0">
         {/* Left Column: Input & History */}
         <div className="w-1/3 flex flex-col gap-6 overflow-y-auto pr-2">
-            {/* AI Input Section */}
+            {/* Input Section */}
             <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
                 <div className="flex items-center gap-2 mb-3">
-                    <span className="material-icons-round text-purple-600">auto_awesome</span>
-                    <h3 className="font-bold text-slate-800">Diagnosis AI Assitant</h3>
+                    <span className="material-icons-round text-teal-600">post_add</span>
+                    <h3 className="font-bold text-slate-800">Input Diagnosis</h3>
                 </div>
-                <p className="text-xs text-slate-500 mb-3">
-                    Masukkan catatan klinis dokter untuk mendapatkan saran kode INA-CBGs dan daftar berkas wajib.
+                <p className="text-xs text-slate-500 mb-4">
+                    Masukkan kode INA-CBG/ICD-10. Sistem akan memprioritaskan Database Internal sebelum menggunakan AI.
                 </p>
-                <textarea 
-                    className="w-full p-3 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none resize-none h-32"
-                    placeholder="Contoh: Pasien datang dengan keluhan sesak napas, riwayat asma..."
-                    value={clinicalNotes}
-                    onChange={(e) => setClinicalNotes(e.target.value)}
-                />
-                {aiError && <p className="text-xs text-rose-500 mt-2">{aiError}</p>}
+                
+                <div className="space-y-4">
+                    <div>
+                        <label className="block text-xs font-semibold text-slate-600 mb-1">Kode Diagnosis <span className="text-rose-500">*</span></label>
+                        <input 
+                            type="text"
+                            value={inputCode}
+                            onChange={(e) => setInputCode(e.target.value)}
+                            placeholder="Contoh: J45.9"
+                            className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none font-mono uppercase"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-xs font-semibold text-slate-600 mb-1">Keterangan / Deskripsi (Opsional)</label>
+                        <textarea 
+                            value={inputDescription}
+                            onChange={(e) => setInputDescription(e.target.value)}
+                            placeholder="Tambahkan detail diagnosis..."
+                            className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none resize-none h-20"
+                        />
+                    </div>
+                </div>
+
+                {aiError && <p className="text-xs text-rose-500 mt-3">{aiError}</p>}
+                
                 <button 
-                    onClick={handleAiAnalysis}
-                    disabled={isAnalyzing || !clinicalNotes}
-                    className="w-full mt-3 bg-purple-600 hover:bg-purple-700 disabled:bg-slate-300 text-white py-2 rounded-xl font-medium text-sm transition-all flex justify-center items-center gap-2"
+                    onClick={handleProcessDiagnosis}
+                    disabled={isAnalyzing || !inputCode}
+                    className="w-full mt-4 bg-teal-600 hover:bg-teal-700 disabled:bg-slate-300 text-white py-2.5 rounded-xl font-medium text-sm transition-all flex justify-center items-center gap-2 shadow-sm shadow-teal-200 disabled:shadow-none"
                 >
                     {isAnalyzing ? (
                         <>
-                            <span className="animate-spin material-icons-round text-sm">refresh</span> Menganalisis...
+                            <span className="animate-spin material-icons-round text-sm">refresh</span> Memproses...
                         </>
                     ) : (
-                        "Analisis Diagnosis"
+                        "Simpan & Buat Checklist"
                     )}
                 </button>
             </div>
@@ -124,7 +171,6 @@ export const PatientDetail: React.FC<PatientDetailProps> = ({ patient, onBack, o
                     <div 
                         key={diagnosis.id}
                         className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm cursor-pointer hover:border-teal-400 transition-colors"
-                        onClick={() => {/* Scroll to or highlight right side? For now just visual list */}}
                     >
                         <div className="flex justify-between items-start mb-1">
                             <span className="bg-teal-50 text-teal-700 text-xs font-bold px-2 py-0.5 rounded border border-teal-100">
@@ -171,7 +217,7 @@ export const PatientDetail: React.FC<PatientDetailProps> = ({ patient, onBack, o
                                 </div>
                              </div>
                              <div className="text-right max-w-xs">
-                                <span className="text-xs font-bold text-slate-400 uppercase">Catatan Klinis</span>
+                                <span className="text-xs font-bold text-slate-400 uppercase">Catatan / Sumber</span>
                                 <p className="text-sm text-slate-600 italic mt-1 line-clamp-3">"{patient.diagnoses[0].notes}"</p>
                              </div>
                         </div>
@@ -230,11 +276,11 @@ export const PatientDetail: React.FC<PatientDetailProps> = ({ patient, onBack, o
             ) : (
                 <div className="flex flex-col items-center justify-center h-full text-center p-8">
                     <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mb-4">
-                        <span className="material-icons-round text-slate-300 text-4xl">medical_services</span>
+                        <span className="material-icons-round text-slate-300 text-4xl">post_add</span>
                     </div>
-                    <h3 className="text-xl font-bold text-slate-700">Belum Ada Diagnosis Aktif</h3>
+                    <h3 className="text-xl font-bold text-slate-700">Belum Ada Diagnosis</h3>
                     <p className="text-slate-500 max-w-sm mt-2">
-                        Gunakan <strong>AI Assistant</strong> di panel kiri untuk menganalisis catatan klinis dan membuat diagnosis baru beserta checklist dokumen.
+                        Silakan input kode INA-CBG di panel kiri untuk memulai proses klaim dan melihat daftar berkas yang dibutuhkan.
                     </p>
                 </div>
             )}

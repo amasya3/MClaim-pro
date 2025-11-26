@@ -8,7 +8,7 @@ const inaCbgSchema: Schema = {
   properties: {
     code: {
       type: Type.STRING,
-      description: "The estimated INA-CBG or ICD-10 code based on the diagnosis.",
+      description: "The verified INA-CBG or ICD-10 code.",
     },
     description: {
       type: Type.STRING,
@@ -28,19 +28,20 @@ const inaCbgSchema: Schema = {
   required: ["code", "description", "severity", "requiredDocuments"],
 };
 
-export const suggestDiagnosisAndDocs = async (clinicalNotes: string): Promise<INACBGResponse> => {
+export const analyzeDiagnosisCode = async (code: string, descriptionHint?: string): Promise<INACBGResponse> => {
   try {
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash",
-      contents: `Analyze the following clinical notes/diagnosis and provide the most likely INA-CBG/ICD-10 code and a checklist of mandatory documents required for the claim in the Indonesian National Health Insurance (JKN/BPJS) system.
+      contents: `Provide the official description and a checklist of mandatory documents for the following INA-CBG/ICD-10 code in the Indonesian National Health Insurance (JKN/BPJS) system.
       
-      Clinical Notes: "${clinicalNotes}"
+      Code: "${code}"
+      Additional Context: "${descriptionHint || ''}"
       
-      Be precise with document names.`,
+      If the code is valid, provide the official description. If specific context is provided, tailor the document list (e.g. specific lab results).`,
       config: {
         responseMimeType: "application/json",
         responseSchema: inaCbgSchema,
-        temperature: 0.3, 
+        temperature: 0.1, 
       },
     });
 
@@ -49,7 +50,7 @@ export const suggestDiagnosisAndDocs = async (clinicalNotes: string): Promise<IN
     }
     throw new Error("No response from AI");
   } catch (error) {
-    console.error("Error fetching INA-CBGs suggestion:", error);
+    console.error("Error fetching INA-CBGs details:", error);
     throw error;
   }
 };

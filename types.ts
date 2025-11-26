@@ -45,4 +45,12 @@ export interface INACBGResponse {
   requiredDocuments: string[];
 }
 
-export type ViewState = 'DASHBOARD' | 'PATIENTS' | 'PATIENT_DETAIL';
+export interface INACBGTemplate {
+  id: string;
+  code: string;
+  description: string;
+  severity: 'I' | 'II' | 'III';
+  requiredDocuments: string[];
+}
+
+export type ViewState = 'DASHBOARD' | 'PATIENTS' | 'PATIENT_DETAIL' | 'CBG_DATABASE';

@@ -1,6 +1,7 @@
 
 import React, { useState } from 'react';
 import { Layout } from './components/Layout';
+import { Auth } from './components/Auth';
 import { Dashboard } from './components/Dashboard';
 import { PatientList } from './components/PatientList';
 import { PatientDetail } from './components/PatientDetail';
@@ -115,10 +116,28 @@ const initialTemplates: INACBGTemplate[] = [
 ];
 
 const App: React.FC = () => {
+  // Auth State
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [hospitalName, setHospitalName] = useState("");
+  const [verifierName, setVerifierName] = useState("Dr. Hartono");
+
+  // App State
   const [view, setView] = useState<ViewState>('DASHBOARD');
   const [patients, setPatients] = useState<Patient[]>(initialPatients);
   const [cbgTemplates, setCbgTemplates] = useState<INACBGTemplate[]>(initialTemplates);
   const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
+
+  const handleLogin = (hospital: string, verifier: string) => {
+    setHospitalName(hospital);
+    setVerifierName(verifier);
+    setIsAuthenticated(true);
+  };
+
+  const handleLogout = () => {
+    setIsAuthenticated(false);
+    setView('DASHBOARD');
+    setSelectedPatientId(null);
+  };
 
   const handleNavigate = (newView: ViewState) => {
     setView(newView);
@@ -163,10 +182,22 @@ const App: React.FC = () => {
     setCbgTemplates(prev => prev.filter(t => t.id !== id));
   };
 
+  // Render Auth screen if not logged in
+  if (!isAuthenticated) {
+    return <Auth onLogin={handleLogin} />;
+  }
+
   const activePatient = patients.find(p => p.id === selectedPatientId);
 
   return (
-    <Layout currentView={view} onChangeView={handleNavigate}>
+    <Layout 
+        currentView={view} 
+        onChangeView={handleNavigate}
+        hospitalName={hospitalName}
+        verifierName={verifierName}
+        onVerifierNameChange={setVerifierName}
+        onLogout={handleLogout}
+    >
       {view === 'DASHBOARD' && <Dashboard patients={patients} />}
       
       {view === 'PATIENTS' && (

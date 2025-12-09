@@ -114,7 +114,7 @@ export const InaCbgDatabase: React.FC<InaCbgDatabaseProps> = ({
        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h2 className="text-2xl font-bold text-slate-800">Database INA-CBGs & Tarif</h2>
-          <p className="text-slate-500">Master data kode, checklist berkas, dan standar tarif RS Kelas D.</p>
+          <p className="text-slate-500">Master data kode, checklist berkas, dan standar tarif RS.</p>
         </div>
         <button 
           onClick={handleOpenAdd}

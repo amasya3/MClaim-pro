@@ -1,15 +1,26 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ViewState } from '../types';
 
 interface LayoutProps {
   children: React.ReactNode;
   currentView: ViewState;
   onChangeView: (view: ViewState) => void;
+  hospitalName: string;
+  verifierName: string;
+  onVerifierNameChange: (name: string) => void;
+  onLogout: () => void;
 }
 
-export const Layout: React.FC<LayoutProps> = ({ children, currentView, onChangeView }) => {
-  const [verifierName, setVerifierName] = useState("Dr. Hartono");
+export const Layout: React.FC<LayoutProps> = ({ 
+  children, 
+  currentView, 
+  onChangeView, 
+  hospitalName,
+  verifierName,
+  onVerifierNameChange,
+  onLogout
+}) => {
   const [isEditingVerifier, setIsEditingVerifier] = useState(false);
   const [tempVerifierName, setTempVerifierName] = useState("");
 
@@ -27,7 +38,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, onChangeV
 
   const handleSaveVerifier = () => {
     if (tempVerifierName.trim()) {
-        setVerifierName(tempVerifierName);
+        onVerifierNameChange(tempVerifierName);
     }
     setIsEditingVerifier(false);
   };
@@ -36,13 +47,16 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, onChangeV
     <div className="flex h-screen bg-slate-50 text-slate-800 font-sans">
       {/* Sidebar */}
       <aside className="w-64 bg-white border-r border-slate-200 flex-shrink-0 flex flex-col shadow-sm z-10 hidden md:flex">
-        <div className="h-16 flex items-center px-6 border-b border-slate-100">
+        <div className="h-20 flex items-center px-6 border-b border-slate-100">
           <div className="w-10 h-10 bg-green-600 rounded-full flex items-center justify-center mr-3 shadow-sm border-2 border-green-800 shrink-0">
              <svg className="w-6 h-6 text-white drop-shadow-sm" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="6">
                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
              </svg>
           </div>
-          <h1 className="text-xl font-bold text-slate-800 tracking-tight">MClaim <span className="text-teal-600">Manajer</span></h1>
+          <div>
+            <h1 className="text-lg font-bold text-slate-800 tracking-tight leading-none">MClaim <span className="text-teal-600">Manajer</span></h1>
+            <p className="text-[10px] text-slate-500 font-medium mt-1 uppercase tracking-wide truncate max-w-[140px]" title={hospitalName}>{hospitalName}</p>
+          </div>
         </div>
 
         <nav className="flex-1 p-4 space-y-2">
@@ -92,19 +106,27 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, onChangeV
                 </div>
             </div>
           ) : (
-            <div 
-                className="flex items-center gap-3 px-4 py-2 rounded-xl hover:bg-slate-50 cursor-pointer group transition-all"
-                onClick={handleStartEdit}
-                title="Klik untuk ubah nama verifikator"
-            >
-                <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-slate-500 flex-shrink-0">
-                <span className="material-icons-round text-sm">person</span>
+            <div className="flex items-center gap-2">
+                <div 
+                    className="flex-1 flex items-center gap-3 px-2 py-2 rounded-xl hover:bg-slate-50 cursor-pointer group transition-all"
+                    onClick={handleStartEdit}
+                    title="Klik untuk ubah nama verifikator"
+                >
+                    <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-slate-500 flex-shrink-0">
+                    <span className="material-icons-round text-sm">person</span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-slate-700 truncate">{verifierName}</p>
+                    <p className="text-xs text-slate-400">Verifikator</p>
+                    </div>
                 </div>
-                <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-slate-700 truncate">{verifierName}</p>
-                <p className="text-xs text-slate-400">Verifikator Internal</p>
-                </div>
-                <span className="material-icons-round text-xs text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity">edit</span>
+                <button 
+                    onClick={onLogout}
+                    className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                    title="Logout"
+                >
+                    <span className="material-icons-round">logout</span>
+                </button>
             </div>
           )}
         </div>
@@ -120,10 +142,13 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, onChangeV
                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
                 </svg>
              </div>
-             <span className="font-bold text-lg">MClaim Manajer</span>
+             <div>
+                <span className="font-bold text-lg block leading-none">MClaim</span>
+                <span className="text-[10px] text-slate-500 uppercase">{hospitalName}</span>
+             </div>
            </div>
-           <button className="p-2 text-slate-500">
-             <span className="material-icons-round">menu</span>
+           <button onClick={onLogout} className="p-2 text-slate-500">
+             <span className="material-icons-round">logout</span>
            </button>
         </header>
 

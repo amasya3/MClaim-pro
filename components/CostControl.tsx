@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Patient, INACBGTemplate } from '../types';
 
@@ -37,11 +36,6 @@ export const CostControl: React.FC<CostControlProps> = ({ patients, cbgTemplates
 
     return { amount: 0, isEstimated: false };
   };
-
-  // Calculations based on Effective Tariff
-  const totalBilling = patients.reduce((acc, p) => acc + (p.billingAmount || 0), 0);
-  const totalInaCbg = patients.reduce((acc, p) => acc + getEffectiveTariff(p).amount, 0);
-  const totalVariance = totalInaCbg - totalBilling;
 
   const filteredPatients = patients.filter(p => 
     p.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -86,24 +80,6 @@ export const CostControl: React.FC<CostControlProps> = ({ patients, cbgTemplates
         </div>
       </div>
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-            <p className="text-slate-500 text-sm font-medium mb-1">Total Tagihan RS</p>
-            <h3 className="text-2xl font-bold text-slate-800">{formatCurrency(totalBilling)}</h3>
-        </div>
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-            <p className="text-slate-500 text-sm font-medium mb-1">Total Potensi Klaim (INA-CBG)</p>
-            <h3 className="text-2xl font-bold text-teal-600">{formatCurrency(totalInaCbg)}</h3>
-        </div>
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-            <p className="text-slate-500 text-sm font-medium mb-1">Estimasi Profit / Loss</p>
-            <h3 className={`text-2xl font-bold ${totalVariance >= 0 ? 'text-green-600' : 'text-rose-600'}`}>
-                {totalVariance >= 0 ? '+' : ''}{formatCurrency(totalVariance)}
-            </h3>
-        </div>
-      </div>
-
       {/* Search */}
       <div className="relative">
         <span className="material-icons-round absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">search</span>
@@ -145,7 +121,6 @@ export const CostControl: React.FC<CostControlProps> = ({ patients, cbgTemplates
                             <tr key={patient.id} className="hover:bg-slate-50 transition-colors">
                                 <td className="px-6 py-4">
                                     <div className="font-semibold text-slate-800">{patient.name}</div>
-                                    <div className="text-xs text-slate-500">{patient.mrn}</div>
                                 </td>
                                 <td className="px-4 py-4">
                                     {hasDiagnosis ? (

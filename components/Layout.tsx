@@ -27,7 +27,6 @@ export const Layout: React.FC<LayoutProps> = ({
   const navItems = [
     { id: 'DASHBOARD', label: 'Dashboard', icon: 'dashboard' },
     { id: 'PATIENTS', label: 'Manajemen Pasien', icon: 'people' },
-    { id: 'COST_CONTROL', label: 'Cost Control', icon: 'request_quote' },
     { id: 'CBG_DATABASE', label: 'Database INA-CBGs', icon: 'library_books' },
   ];
 

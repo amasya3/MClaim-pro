@@ -59,4 +59,4 @@ export interface INACBGTemplate {
   tariff?: number; // Standard tariff for Class D Hospital
 }
 
-export type ViewState = 'DASHBOARD' | 'PATIENTS' | 'PATIENT_DETAIL' | 'CBG_DATABASE' | 'COST_CONTROL';
+export type ViewState = 'DASHBOARD' | 'PATIENTS' | 'PATIENT_DETAIL' | 'CBG_DATABASE';

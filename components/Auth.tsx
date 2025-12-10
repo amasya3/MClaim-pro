@@ -9,6 +9,7 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
   const [isRegister, setIsRegister] = useState(false);
   const [hospitalName, setHospitalName] = useState('');
   const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [verifierName, setVerifierName] = useState('');
 
@@ -16,10 +17,10 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
     e.preventDefault();
     // Simulation of authentication
     // In a real app, this would hit an API
-    if (email && password) {
+    if ((email || username) && password) {
       // Default values if logging in without prior registration (mock)
-      const finalHospitalName = isRegister ? hospitalName : "RS Umum Pusat";
-      const finalVerifier = isRegister ? verifierName : "Dr. Hartono";
+      const finalHospitalName = isRegister ? hospitalName : "RSI Mabarrot MWC NU Bungah";
+      const finalVerifier = isRegister ? verifierName : "Kepala unit";
       
       onLogin(finalHospitalName, finalVerifier);
     }
@@ -52,7 +53,7 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
                     value={hospitalName}
                     onChange={(e) => setHospitalName(e.target.value)}
                     className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none transition-all"
-                    placeholder="Contoh: RSUD Sehat Sentosa"
+                    placeholder="Contoh: RSI Mabarrot MWC NU Bungah"
                   />
                 </div>
                 <div>
@@ -63,21 +64,34 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
                     value={verifierName}
                     onChange={(e) => setVerifierName(e.target.value)}
                     className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none transition-all"
-                    placeholder="Contoh: Dr. Budi"
+                    placeholder="Contoh: Kepala unit"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Username</label>
+                  <input 
+                    type="text" 
+                    required 
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none transition-all"
+                    placeholder="Contoh: RSIMB"
                   />
                 </div>
               </>
             )}
 
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Email Institusi</label>
+              <label className="block text-sm font-medium text-slate-700 mb-1">
+                {isRegister ? 'Email Institusi' : 'Email atau Username'}
+              </label>
               <input 
-                type="email" 
+                type="text" 
                 required 
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none transition-all"
-                placeholder="admin@rs-example.com"
+                placeholder={isRegister ? "admin@rs-example.com" : "Email atau username"}
               />
             </div>
 

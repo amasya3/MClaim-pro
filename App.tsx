@@ -6,7 +6,6 @@ import { Dashboard } from './components/Dashboard';
 import { PatientList } from './components/PatientList';
 import { PatientDetail } from './components/PatientDetail';
 import { InaCbgDatabase } from './components/InaCbgDatabase';
-import { CostControl } from './components/CostControl';
 import { Patient, ViewState, PatientStatus, Gender, INACBGTemplate } from './types';
 
 // Mock Data Initialization
@@ -198,23 +197,22 @@ const App: React.FC = () => {
         onVerifierNameChange={setVerifierName}
         onLogout={handleLogout}
     >
-      {view === 'DASHBOARD' && <Dashboard patients={patients} />}
+      {view === 'DASHBOARD' && (
+        <Dashboard 
+            patients={patients} 
+            cbgTemplates={cbgTemplates}
+            onSelectPatient={handleSelectPatient}
+        />
+      )}
       
       {view === 'PATIENTS' && (
         <PatientList 
           patients={patients} 
+          cbgTemplates={cbgTemplates}
           onSelectPatient={handleSelectPatient}
           onAddPatient={handleAddPatient}
           onUpdatePatientDetails={handleUpdatePatientDetails}
           onDeletePatient={handleDeletePatient}
-        />
-      )}
-
-      {view === 'COST_CONTROL' && (
-        <CostControl
-          patients={patients}
-          cbgTemplates={cbgTemplates}
-          onUpdateCost={handleUpdatePatientDetails}
         />
       )}
 

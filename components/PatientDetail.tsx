@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Patient, Diagnosis, DocumentItem, INACBGTemplate } from '../types';
 import { analyzeDiagnosisCode } from '../services/geminiService';
@@ -94,6 +95,7 @@ export const PatientDetail: React.FC<PatientDetailProps> = ({ patient, onBack, o
     try {
         let finalChecklist: DocumentItem[] = [];
         let sourceNote = '';
+        let descriptionToSave = inputDescription;
         
         // Determine if we need to regenerate checklist (New Item OR Code Changed)
         const currentDiagnosis = editingDiagnosisId 
@@ -102,20 +104,31 @@ export const PatientDetail: React.FC<PatientDetailProps> = ({ patient, onBack, o
         
         const isCodeChanged = !currentDiagnosis || currentDiagnosis.code !== inputCode.toUpperCase();
 
-        if (isCodeChanged) {
-            // Fetch fresh data for checklist
+        // If code changed OR description is empty, we fetch data
+        if (isCodeChanged || !descriptionToSave.trim()) {
+            // Fetch fresh data 
             const codeResult = await fetchCodeData(inputCode);
-            sourceNote = codeResult.source;
             
-            // Use fetched data if inputs are empty, otherwise trust user inputs
-            if (!inputDescription) setInputDescription(codeResult.description);
-            
-            finalChecklist = codeResult.requiredDocuments.map((doc, idx) => ({
-                id: `doc-${Date.now()}-${idx}`,
-                name: doc,
-                isChecked: false,
-                required: true
-            }));
+            // If description was empty, use fetched description
+            if (!descriptionToSave.trim()) {
+                descriptionToSave = codeResult.description;
+            }
+
+            if (isCodeChanged) {
+                sourceNote = codeResult.source;
+                finalChecklist = codeResult.requiredDocuments.map((doc, idx) => ({
+                    id: `doc-${Date.now()}-${idx}`,
+                    name: doc,
+                    isChecked: false,
+                    required: true
+                }));
+            } else {
+                // Code matches, just filling description. Keep existing checklist.
+                 if (currentDiagnosis) {
+                    finalChecklist = currentDiagnosis.checklist;
+                    sourceNote = currentDiagnosis.notes || '';
+                }
+            }
         } else {
             // Keep existing checklist and note
             if (currentDiagnosis) {
@@ -124,8 +137,8 @@ export const PatientDetail: React.FC<PatientDetailProps> = ({ patient, onBack, o
             }
         }
 
-        // Final values to save (Trust form state first)
-        const finalDescription = inputDescription || "Diagnosis Tanpa Deskripsi";
+        // Final values to save
+        const finalDescription = descriptionToSave || "Diagnosis Tanpa Deskripsi";
         const finalSeverity = inputSeverity;
 
         if (editingDiagnosisId) {
@@ -305,7 +318,7 @@ export const PatientDetail: React.FC<PatientDetailProps> = ({ patient, onBack, o
             
             <div className="bg-blue-50 p-4 rounded-xl border border-blue-100">
                 <p className="text-xs text-blue-800 leading-relaxed">
-                    <span className="font-bold">Tips:</span> Gunakan tombol pencarian (ikon kaca pembesar) di kolom Kode untuk mengisi otomatis Deskripsi dan Severity sebelum menyimpan.
+                    <span className="font-bold">Tips:</span> Apabila deskripsi dikosongkan, sistem otomatis mengambil deskripsi dari Database INA-CBGs saat disimpan.
                 </p>
             </div>
         </div>

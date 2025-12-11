@@ -307,9 +307,7 @@ export const InaCbgDatabase: React.FC<InaCbgDatabaseProps> = ({
                     <span className="bg-teal-50 text-teal-700 font-mono font-bold px-2 py-1 rounded text-sm border border-teal-100">
                         {template.code}
                     </span>
-                    <span className="text-xs font-semibold text-slate-500 bg-slate-100 px-2 py-1 rounded">
-                        Severity {template.severity}
-                    </span>
+                    {/* Severity display removed */}
                 </div>
                 <h3 className="font-semibold text-slate-800 mb-2 line-clamp-2 min-h-[3rem]">{template.description}</h3>
                 

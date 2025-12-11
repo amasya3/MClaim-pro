@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Patient, PatientStatus, Gender, INACBGTemplate } from '../types';
 
 interface PatientListProps {
@@ -23,7 +23,13 @@ export const PatientList: React.FC<PatientListProps> = ({
   const [activeTab, setActiveTab] = useState<'active' | 'krs'>('active');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
+  // Note Modal State
+  const [isNoteModalOpen, setIsNoteModalOpen] = useState(false);
+  const [notePatient, setNotePatient] = useState<Patient | null>(null);
+  const [noteContent, setNoteContent] = useState('');
+
   // Form State
   const [name, setName] = useState('');
   const [gender, setGender] = useState<Gender>(Gender.MALE);
@@ -83,6 +89,23 @@ export const PatientList: React.FC<PatientListProps> = ({
     if (window.confirm(`Apakah anda yakin ingin menghapus data pasien ${patient.name}?`)) {
         onDeletePatient(patient.id);
     }
+  };
+
+  const handleOpenNote = (patient: Patient, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setNotePatient(patient);
+    setNoteContent(patient.verifierNote || '');
+    setIsNoteModalOpen(true);
+  };
+
+  const handleSaveNote = () => {
+    if (notePatient) {
+        const updatedPatient = { ...notePatient, verifierNote: noteContent };
+        onUpdatePatientDetails(updatedPatient);
+    }
+    setIsNoteModalOpen(false);
+    setNotePatient(null);
+    setNoteContent('');
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -176,11 +199,330 @@ export const PatientList: React.FC<PatientListProps> = ({
     return { amount: 0, isEstimated: false };
   };
 
-  const handleExportToExcel = () => {
-    // Headers
+  const handleImportClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const content = e.target?.result as string;
+      if (!content) return;
+
+      const lines = content.split(/\r\n|\n/);
+      
+      let importedCount = 0;
+      let startIndex = 0;
+      let isSimrsFormat = false;
+      let isShortFormat = false;
+
+      // 1. Detect Format & Start Index
+      for (let i = 0; i < Math.min(lines.length, 10); i++) {
+        const lineLower = lines[i].toLowerCase();
+        if (lineLower.includes('no.rawat') || lineLower.includes('no.r.m.')) {
+            startIndex = i + 1;
+            isSimrsFormat = true;
+            break;
+        }
+      }
+      
+      // Fallback detection
+      if (!isSimrsFormat) {
+         const headerLine = lines[0].toLowerCase();
+         if (headerLine.includes('nama pasien') && !headerLine.includes('no. rm')) {
+             // Short template format (No MRN/Status/etc)
+             startIndex = 1;
+             isShortFormat = true;
+         } else {
+             // Full export format
+             startIndex = headerLine.includes('no. rm') ? 1 : 0;
+         }
+      }
+
+      for (let i = startIndex; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (!line) continue;
+
+        // Detect separator
+        let separator = ','; // Default for CSV
+        if (line.includes('\t')) separator = '\t';
+        else if (line.split(';').length > line.split(',').length) separator = ';';
+
+        // Split and clean quotes
+        let parts: string[] = [];
+        if (separator === ',') {
+             // Regex to split by comma ONLY if not inside quotes
+             const regexMatch = line.match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g);
+             if (regexMatch) {
+                 parts = regexMatch.map(p => p.replace(/^"|"$/g, '').replace(/""/g, '"').trim());
+             } else {
+                 parts = line.split(',').map(p => p.trim());
+             }
+             if (parts.length < 5) parts = line.split(',').map(p => p.replace(/^"|"$/g, '').trim());
+        } else {
+             parts = line.split(separator).map(p => p.trim().replace(/^"|"$/g, '').replace(/""/g, '"'));
+        }
+
+        let newPatient: Patient;
+
+        if (isSimrsFormat) {
+            // ... (Existing SIMRS Logic) ...
+            const mrn = parts[2] || `RM-${Math.floor(Math.random() * 99999)}`;
+            const name = parts[3];
+            if (!name) continue;
+
+            const roomNumber = parts[6] || '';
+            const diagCode = parts[7] || '';
+            
+            // Date Parsing: dd/mm/yyyy -> yyyy-mm-dd
+            let admissionDate = new Date().toISOString().split('T')[0];
+            if (parts[9]) {
+                const dateParts = parts[9].split('/');
+                if (dateParts.length === 3) {
+                    admissionDate = `${dateParts[2]}-${dateParts[1]}-${dateParts[0]}`;
+                }
+            }
+
+            let billingAmount = 0;
+            if (parts.length > 10) {
+                const moneyPart = parts[parts.length - 1] || '0'; 
+                const cleanMoney = moneyPart.replace(/[Rp\s.]/g, '').replace(',', '.');
+                billingAmount = parseFloat(cleanMoney) || 0;
+            }
+
+            const diagnoses: any[] = [];
+            if (diagCode && diagCode !== '-') {
+                const template = cbgTemplates.find(t => t.code === diagCode.toUpperCase());
+                let checklist: any[] = [];
+                let severity: 'I'|'II'|'III' = 'I';
+
+                if (template) {
+                    checklist = template.requiredDocuments.map((doc, idx) => ({
+                        id: `doc-${Date.now()}-${idx}`,
+                        name: doc,
+                        isChecked: false,
+                        required: true
+                    }));
+                    severity = template.severity;
+                }
+
+                diagnoses.push({
+                    id: crypto.randomUUID(),
+                    code: diagCode.toUpperCase(),
+                    description: template ? template.description : 'Imported Diagnosis',
+                    severity: severity,
+                    timestamp: new Date().toISOString(),
+                    checklist: checklist,
+                    notes: 'Imported from SIMRS'
+                });
+            }
+
+            newPatient = {
+                id: crypto.randomUUID(),
+                mrn,
+                name,
+                bpjsNumber: '-', 
+                gender: Gender.MALE,
+                dob: '1980-01-01',
+                status: PatientStatus.ADMITTED,
+                diagnoses,
+                lastVisit: new Date().toISOString(),
+                admissionDate,
+                roomNumber,
+                billingAmount,
+                inaCbgAmount: 0
+            };
+
+        } else if (isShortFormat) {
+            // SHORT FORMAT LOGIC (Matching new Template)
+            // 0: Name, 1: Admission, 2: Room, 3: Code, 4: Desc, 5: Bill, 6: Tariff, 7: Variance
+            
+            if (parts.length < 1) continue;
+            
+            const name = parts[0];
+            if (!name) continue;
+
+            // Auto-generate missing fields
+            const mrn = `RM-${Math.floor(Math.random() * 99)}-${Math.floor(Math.random() * 999)}`;
+            const bpjsNumber = '-';
+            const gender = Gender.MALE; // Default
+            const status = PatientStatus.ADMITTED; // Default
+
+            const admissionDate = (parts[1] && parts[1] !== '-' && parts[1] !== '""') ? parts[1] : new Date().toISOString().split('T')[0];
+            const roomNumber = (parts[2] && parts[2] !== '-' && parts[2] !== '""') ? parts[2] : '';
+
+            // Diagnosis
+            const diagCode = (parts[3] && parts[3] !== '-' && parts[3] !== '""') ? parts[3] : '';
+            const diagDesc = (parts[4] && parts[4] !== '-' && parts[4] !== '""') ? parts[4] : '';
+            
+            const diagnoses: any[] = [];
+            if (diagCode) {
+                const template = cbgTemplates.find(t => t.code === diagCode);
+                let checklist: any[] = [];
+                let severity: 'I'|'II'|'III' = 'I';
+
+                if (template) {
+                    checklist = template.requiredDocuments.map((doc, idx) => ({
+                        id: `doc-${Date.now()}-${idx}`,
+                        name: doc,
+                        isChecked: false,
+                        required: true
+                    }));
+                    severity = template.severity;
+                }
+
+                diagnoses.push({
+                    id: crypto.randomUUID(),
+                    code: diagCode,
+                    description: diagDesc || (template ? template.description : 'Imported Diagnosis'),
+                    severity: severity,
+                    timestamp: new Date().toISOString(),
+                    checklist: checklist,
+                    notes: 'Imported from CSV'
+                });
+            }
+
+            const billingAmount = parts[5] ? parseFloat(parts[5]) : 0;
+            const inaCbgAmount = parts[6] ? parseFloat(parts[6]) : 0;
+
+            newPatient = {
+                id: crypto.randomUUID(),
+                mrn,
+                name,
+                bpjsNumber,
+                gender,
+                dob: '1980-01-01',
+                status,
+                diagnoses,
+                lastVisit: new Date().toISOString(),
+                admissionDate,
+                roomNumber,
+                billingAmount,
+                inaCbgAmount
+            };
+
+        } else {
+            // FULL / EXPORT FORMAT LOGIC
+            if (parts.length < 2) continue;
+
+            const mrn = parts[0] || `RM-${Math.floor(Math.random() * 99)}-${Math.floor(Math.random() * 999)}`;
+            const name = parts[1];
+            if (!name) continue;
+
+            const bpjsNumber = parts[2] || '-';
+            
+            let gender = Gender.MALE;
+            if (parts[3]?.toLowerCase().includes('perempuan') || parts[3]?.toLowerCase() === 'female') gender = Gender.FEMALE;
+
+            let status = PatientStatus.ADMITTED;
+            const statusRaw = parts[4]?.toLowerCase() || '';
+            if (statusRaw.includes('jalan') || statusRaw.includes('outpatient')) status = PatientStatus.OUTPATIENT;
+            else if (statusRaw.includes('pulang') || statusRaw.includes('discharged')) status = PatientStatus.DISCHARGED;
+
+            const admissionDate = (parts[5] && parts[5] !== '-' && parts[5] !== '""') ? parts[5] : new Date().toISOString().split('T')[0];
+            const roomNumber = (parts[6] && parts[6] !== '-' && parts[6] !== '""') ? parts[6] : '';
+
+            // Diagnosis
+            const diagCode = (parts[7] && parts[7] !== '-' && parts[7] !== '""') ? parts[7] : '';
+            const diagDesc = (parts[8] && parts[8] !== '-' && parts[8] !== '""') ? parts[8] : '';
+            
+            const diagnoses: any[] = [];
+            if (diagCode) {
+                const template = cbgTemplates.find(t => t.code === diagCode);
+                let checklist: any[] = [];
+                let severity: 'I'|'II'|'III' = 'I';
+
+                if (template) {
+                    checklist = template.requiredDocuments.map((doc, idx) => ({
+                        id: `doc-${Date.now()}-${idx}`,
+                        name: doc,
+                        isChecked: false,
+                        required: true
+                    }));
+                    severity = template.severity;
+                }
+
+                diagnoses.push({
+                    id: crypto.randomUUID(),
+                    code: diagCode,
+                    description: diagDesc || (template ? template.description : 'Imported Diagnosis'),
+                    severity: severity,
+                    timestamp: new Date().toISOString(),
+                    checklist: checklist,
+                    notes: 'Imported from CSV'
+                });
+            }
+
+            const billingAmount = parts[10] ? parseFloat(parts[10]) : 0;
+            const inaCbgAmount = parts[11] ? parseFloat(parts[11]) : 0;
+
+            newPatient = {
+                id: crypto.randomUUID(),
+                mrn,
+                name,
+                bpjsNumber,
+                gender,
+                dob: '1980-01-01',
+                status,
+                diagnoses,
+                lastVisit: new Date().toISOString(),
+                admissionDate,
+                roomNumber,
+                billingAmount,
+                inaCbgAmount
+            };
+        }
+
+        onAddPatient(newPatient);
+        importedCount++;
+      }
+      
+      if (importedCount > 0) {
+        alert(`Berhasil mengimpor ${importedCount} data pasien.`);
+      } else {
+        alert('Gagal mengimpor data atau file kosong.');
+      }
+      
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    };
+
+    reader.readAsText(file);
+  };
+
+  const handleDownloadTemplate = () => {
+    // Headers matching the simplified requested format
+    // Removed: No. RM, BPJS, Gender, Status, Lama Rawat
     const headers = [
-      "No. RM", "Nama Pasien", "BPJS", "Gender", "Status", "Tgl Masuk", "Kamar", 
-      "Kode Diagnosis", "Deskripsi Diagnosis", "Lama Rawat", "Tagihan RS", "Tarif INA-CBG", "Selisih"
+      "Nama Pasien", "Tgl Masuk", "Kamar", 
+      "Kode Diagnosis", "Deskripsi Diagnosis", "Tagihan RS", "Tarif INA-CBG", "Selisih"
+    ];
+    
+    // Example row
+    const example = [
+        "Contoh Pasien", 
+        new Date().toISOString().split('T')[0], "Anggrek 1", "J45.9", "Asma Bronkial", "1500000", "2000000", "500000"
+    ];
+
+    const csvContent = "\uFEFF" + headers.join(";") + "\n" + example.map(item => `"${item}"`).join(";");
+    
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", "template_pasien.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleExportToExcel = () => {
+    // Headers matching the table columns
+    const headers = [
+      "Pasien", "Lama Rawat", "Kamar", "Diagnosis", 
+      "Tarif INA-CBG", "Tagihan RS", "Selisih", "Note Usulan"
     ];
 
     // Helper for safe CSV fields (handles quotes)
@@ -195,26 +537,21 @@ export const PatientList: React.FC<PatientListProps> = ({
     const rows = filteredPatients.map(p => {
         const diagnosis = p.diagnoses[0];
         const diagnosisCode = diagnosis ? diagnosis.code : '-';
-        const diagnosisDesc = diagnosis ? diagnosis.description : '-';
+        
         const lengthOfStay = calculateLengthOfStay(p.admissionDate, p.lastVisit, p.status === PatientStatus.DISCHARGED);
         const bill = p.billingAmount || 0;
         const effectiveTariff = getEffectiveTariff(p).amount;
         const variance = effectiveTariff - bill;
 
         return [
-            safe(p.mrn),
             safe(p.name),
-            safe(p.bpjsNumber),
-            safe(p.gender),
-            safe(p.status),
-            safe(p.admissionDate || '-'),
+            safe(lengthOfStay),
             safe(p.roomNumber || '-'),
             safe(diagnosisCode),
-            safe(diagnosisDesc),
-            safe(lengthOfStay),
-            bill, // Numbers raw for Excel calculations
             effectiveTariff,
-            variance
+            bill,
+            variance,
+            safe(p.verifierNote || '')
         ].join(";"); // Use semicolon for better Excel compatibility in ID region
     });
 
@@ -248,14 +585,13 @@ export const PatientList: React.FC<PatientListProps> = ({
         </button>
       </div>
 
-      <div className="flex flex-col sm:flex-row gap-4 justify-between items-end sm:items-center">
-        {/* Tabs */}
-        <div className="bg-slate-100 p-1 rounded-xl flex gap-1 w-full sm:w-auto">
+      <div className="flex flex-col md:flex-row gap-4 items-center">
+        <div className="bg-white p-1 rounded-xl border border-slate-200 flex shadow-sm">
             <button 
                 onClick={() => setActiveTab('active')}
-                className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
                     activeTab === 'active' 
-                    ? 'bg-white text-teal-700 shadow-sm' 
+                    ? 'bg-teal-50 text-teal-700 shadow-sm' 
                     : 'text-slate-500 hover:text-slate-700'
                 }`}
             >
@@ -263,51 +599,79 @@ export const PatientList: React.FC<PatientListProps> = ({
             </button>
             <button 
                 onClick={() => setActiveTab('krs')}
-                className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
                     activeTab === 'krs' 
-                    ? 'bg-white text-teal-700 shadow-sm' 
+                    ? 'bg-teal-50 text-teal-700 shadow-sm' 
                     : 'text-slate-500 hover:text-slate-700'
                 }`}
             >
                 Riwayat Pulang (KRS)
             </button>
         </div>
-
-        {/* Search Bar & Export */}
-        <div className="flex gap-2 w-full sm:w-auto">
-            <div className="relative flex-1 sm:flex-initial">
+        
+        <div className="flex-1 w-full flex gap-2">
+            <div className="relative flex-1">
                 <span className="material-icons-round absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">search</span>
                 <input 
                     type="text" 
-                    placeholder="Cari nama, No. RM, BPJS, atau Kamar..." 
-                    className="w-full sm:w-80 pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition-all bg-white"
+                    placeholder="Cari nama, No. RM, BPJS, atau Kamar." 
+                    className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition-all bg-white"
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                 />
             </div>
+            
+            <button 
+                onClick={handleImportClick}
+                className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 px-3 rounded-xl shadow-sm transition-colors flex items-center justify-center group"
+                title="Import Excel (CSV)"
+            >
+                <span className="material-icons-round text-teal-600 group-hover:text-teal-700">upload_file</span>
+            </button>
+            <button 
+                onClick={handleDownloadTemplate}
+                className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 px-3 rounded-xl shadow-sm transition-colors flex items-center justify-center group"
+                title="Download Template CSV"
+            >
+                <span className="material-icons-round text-blue-600 group-hover:text-blue-700">description</span>
+            </button>
             <button 
                 onClick={handleExportToExcel}
                 className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 px-3 rounded-xl shadow-sm transition-colors flex items-center justify-center group"
-                title="Export ke Excel"
+                title="Export Excel"
             >
-                <span className="material-icons-round text-teal-600 group-hover:text-teal-700">file_download</span>
+                <span className="w-5 h-5 flex items-center justify-center">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" className="w-5 h-5 text-emerald-600" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                        <polyline points="14 2 14 8 20 8" />
+                        <line x1="8" y1="13" x2="16" y2="17" />
+                        <line x1="16" y1="13" x2="8" y2="17" />
+                    </svg>
+                </span>
             </button>
+            <input 
+                type="file" 
+                ref={fileInputRef} 
+                onChange={handleFileChange} 
+                accept=".csv,.txt" 
+                className="hidden" 
+            />
         </div>
       </div>
 
-      {/* Table */}
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
         <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
                 <thead>
                     <tr className="bg-slate-50 border-b border-slate-200 text-xs uppercase text-slate-500 font-semibold tracking-wider">
                         <th className="px-6 py-4">Pasien</th>
-                        <th className="px-4 py-4">Lama Rawat / Kamar</th>
-                        <th className="px-4 py-4">Status</th>
+                        <th className="px-4 py-4 w-32">Lama Rawat</th>
+                        <th className="px-4 py-4">Kamar</th>
                         <th className="px-4 py-4">Diagnosis</th>
-                        <th className="px-4 py-4 text-right">Tagihan RS</th>
                         <th className="px-4 py-4 text-right">Tarif INA-CBG</th>
+                        <th className="px-4 py-4 text-right">Tagihan RS</th>
                         <th className="px-4 py-4 text-right">Selisih</th>
+                        <th className="px-4 py-4 w-32">Note Usulan</th>
                         <th className="px-6 py-4 text-right">Aksi</th>
                     </tr>
                 </thead>
@@ -317,93 +681,86 @@ export const PatientList: React.FC<PatientListProps> = ({
                         const effectiveTariff = getEffectiveTariff(patient);
                         const cbg = effectiveTariff.amount;
                         const variance = cbg - bill;
+                        
+                        const hasDiagnosis = patient.diagnoses.length > 0;
+                        const activeDiagnosis = patient.diagnoses[0];
+                        const lengthOfStay = calculateLengthOfStay(patient.admissionDate, patient.lastVisit, patient.status === PatientStatus.DISCHARGED);
 
                         return (
-                        <tr key={patient.id} className="hover:bg-slate-50 transition-colors group cursor-pointer" onClick={() => onSelectPatient(patient)}>
-                            <td className="px-6 py-4">
-                                <div className="flex items-center gap-3">
-                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm ${
-                                        patient.status === PatientStatus.DISCHARGED ? 'bg-slate-100 text-slate-500' : 'bg-teal-50 text-teal-700'
-                                    }`}>
-                                        {patient.name.charAt(0)}
-                                    </div>
-                                    <div>
-                                        <div className="font-semibold text-slate-800">{patient.name}</div>
-                                    </div>
-                                </div>
-                            </td>
-                            <td className="px-4 py-4">
-                                <div className="text-sm text-teal-700 font-bold mb-0.5">
-                                    {calculateLengthOfStay(patient.admissionDate, patient.lastVisit, patient.status === PatientStatus.DISCHARGED)}
-                                </div>
-                                <div className="text-xs text-slate-500 font-medium">
-                                    {patient.roomNumber ? (
-                                        <span className="flex items-center gap-1">
-                                            <span className="material-icons-round text-[10px]">meeting_room</span>
-                                            {patient.roomNumber}
-                                        </span>
-                                    ) : '-'}
-                                </div>
-                            </td>
-                            <td className="px-4 py-4">
-                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border
-                                    ${patient.status === PatientStatus.ADMITTED ? 'bg-blue-50 text-blue-700 border-blue-100' : 
-                                      patient.status === PatientStatus.OUTPATIENT ? 'bg-purple-50 text-purple-700 border-purple-100' : 
-                                      'bg-slate-100 text-slate-600 border-slate-200'}`}>
-                                    {patient.status}
-                                </span>
-                            </td>
-                            <td className="px-4 py-4">
-                                {patient.diagnoses.length > 0 ? (
-                                    <div className="max-w-xs">
-                                        <div className="text-sm font-semibold text-teal-700 font-mono">
-                                            {patient.diagnoses[0].code}
+                            <tr key={patient.id} className="hover:bg-slate-50 transition-colors group">
+                                <td className="px-6 py-4 cursor-pointer" onClick={() => onSelectPatient(patient)}>
+                                    <div className="flex items-center gap-3">
+                                        <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold shadow-sm ${
+                                            patient.gender === Gender.MALE ? 'bg-blue-100 text-blue-600' : 'bg-pink-100 text-pink-600'
+                                        }`}>
+                                            {patient.name.charAt(0)}
+                                        </div>
+                                        <div>
+                                            <p className="font-semibold text-slate-800">{patient.name}</p>
                                         </div>
                                     </div>
-                                ) : (
-                                    <span className="text-sm text-slate-400 italic">Belum ada</span>
-                                )}
-                            </td>
-                            <td className="px-4 py-4 text-right font-mono text-sm font-medium text-slate-700">
-                                {formatCurrency(bill)}
-                            </td>
-                            <td className="px-4 py-4 text-right">
-                                <div className="flex flex-col items-end">
-                                    <span className={`font-mono text-sm font-bold ${effectiveTariff.isEstimated ? 'text-slate-600' : 'text-teal-700'}`}>
-                                        {formatCurrency(cbg)}
-                                    </span>
-                                </div>
-                            </td>
-                            <td className={`px-4 py-4 text-right font-mono text-sm font-bold ${variance >= 0 ? 'text-green-600' : 'text-rose-600'}`}>
-                                {variance > 0 ? '+' : ''}{formatCurrency(variance)}
-                            </td>
-                            <td className="px-6 py-4 text-right">
-                                <div className="flex items-center justify-end gap-2">
+                                </td>
+                                <td className="px-4 py-4">
+                                     <span className="text-sm font-bold text-teal-700 block">{lengthOfStay}</span>
+                                </td>
+                                <td className="px-4 py-4">
+                                    <div className="flex flex-col">
+                                        <span className="text-sm text-slate-600 font-medium">{patient.roomNumber || '-'}</span>
+                                    </div>
+                                </td>
+                                <td className="px-4 py-4">
+                                    {hasDiagnosis ? (
+                                        <span className="bg-teal-50 text-teal-700 font-mono text-sm px-2 py-1 rounded border border-teal-100 font-bold">
+                                            {activeDiagnosis.code}
+                                        </span>
+                                    ) : <span className="text-xs text-slate-400 italic">Belum ada</span>}
+                                </td>
+                                <td className="px-4 py-4 text-right">
+                                    <div className="flex flex-col items-end">
+                                        <span className={`font-mono text-sm font-medium ${effectiveTariff.isEstimated ? 'text-slate-600' : 'text-teal-700'}`}>
+                                            {formatCurrency(cbg)}
+                                        </span>
+                                    </div>
+                                </td>
+                                <td className="px-4 py-4 text-right font-mono text-sm text-slate-700">
+                                    {formatCurrency(bill)}
+                                </td>
+                                <td className={`px-4 py-4 text-right font-mono text-sm font-bold ${variance >= 0 ? 'text-green-600' : 'text-rose-600'}`}>
+                                    {variance > 0 ? '+' : ''}{formatCurrency(variance)}
+                                </td>
+                                <td className="px-4 py-4">
                                     <button 
-                                        onClick={(e) => handleOpenEdit(patient, e)}
-                                        className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
-                                        title="Edit Pasien / Update Biaya"
+                                        onClick={(e) => handleOpenNote(patient, e)}
+                                        className="w-full text-left px-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg hover:bg-slate-100 hover:border-slate-300 transition-colors text-slate-600 truncate max-w-[120px]"
                                     >
-                                        <span className="material-icons-round text-sm">edit</span>
+                                        {patient.verifierNote ? patient.verifierNote : <span className="text-slate-400 italic">Isi note...</span>}
                                     </button>
-                                    <button 
-                                        onClick={(e) => handleDelete(patient, e)}
-                                        className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all"
-                                        title="Hapus Pasien"
-                                    >
-                                        <span className="material-icons-round text-sm">delete</span>
-                                    </button>
-                                </div>
-                            </td>
-                        </tr>
-                    )})}
+                                </td>
+                                <td className="px-6 py-4 text-right">
+                                    <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <button 
+                                            onClick={(e) => handleOpenEdit(patient, e)}
+                                            className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                            title="Edit"
+                                        >
+                                            <span className="material-icons-round text-sm">edit</span>
+                                        </button>
+                                        <button 
+                                            onClick={(e) => handleDelete(patient, e)}
+                                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                                            title="Hapus"
+                                        >
+                                            <span className="material-icons-round text-sm">delete</span>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        );
+                    })}
                     {filteredPatients.length === 0 && (
                         <tr>
-                            <td colSpan={8} className="px-6 py-12 text-center text-slate-400">
-                                {activeTab === 'active' 
-                                    ? "Tidak ditemukan data pasien aktif."
-                                    : "Tidak ada riwayat pasien pulang (KRS)."
-                                }
+                            <td colSpan={9} className="px-6 py-12 text-center text-slate-400">
+                                Data tidak ditemukan.
                             </td>
                         </tr>
                     )}
@@ -415,77 +772,101 @@ export const PatientList: React.FC<PatientListProps> = ({
       {/* Add/Edit Patient Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
-            <div className="bg-white rounded-2xl shadow-xl max-w-lg w-full p-6 animate-fade-in max-h-[90vh] overflow-y-auto">
-                <h3 className="text-lg font-bold text-slate-800 mb-4">{editingId ? 'Edit Data Pasien' : 'Tambah Pasien Baru'}</h3>
+            <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 animate-fade-in max-h-[90vh] overflow-y-auto">
+                <h3 className="text-lg font-bold text-slate-800 mb-4">{editingId ? 'Edit Pasien' : 'Tambah Pasien Baru'}</h3>
+                
                 <form onSubmit={handleSubmit} className="space-y-4">
                     <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">Nama Lengkap</label>
-                        <input required type="text" value={name} onChange={e => setName(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none" placeholder="Contoh: Budi Santoso" />
+                        <label className="block text-sm font-medium text-slate-700 mb-1">Nama Pasien</label>
+                        <input 
+                            type="text" 
+                            required 
+                            value={name}
+                            onChange={(e) => setName(e.target.value)}
+                            className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none" 
+                            placeholder="Nama Lengkap"
+                        />
                     </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                         <div>
-                            <label className="block text-sm font-medium text-slate-700 mb-1">Tanggal Masuk</label>
-                            <input type="date" value={admissionDate} onChange={e => setAdmissionDate(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none" />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-slate-700 mb-1">Kamar / Poli</label>
-                            <input type="text" value={roomNumber} onChange={e => setRoomNumber(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none" placeholder="Contoh: Anggrek 301" />
-                        </div>
-                    </div>
-
+                    
                     <div className="grid grid-cols-2 gap-4">
                         <div>
                             <label className="block text-sm font-medium text-slate-700 mb-1">Jenis Kelamin</label>
-                            <select value={gender} onChange={e => setGender(e.target.value as Gender)} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none">
+                            <select 
+                                value={gender}
+                                onChange={(e) => setGender(e.target.value as Gender)}
+                                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none bg-white"
+                            >
                                 <option value={Gender.MALE}>Laki-laki</option>
                                 <option value={Gender.FEMALE}>Perempuan</option>
                             </select>
                         </div>
                         <div>
-                            <label className="block text-sm font-medium text-slate-700 mb-1">Status Rawat</label>
-                            <select value={status} onChange={e => setStatus(e.target.value as PatientStatus)} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none">
-                                <option value={PatientStatus.ADMITTED}>{PatientStatus.ADMITTED}</option>
-                                <option value={PatientStatus.OUTPATIENT}>{PatientStatus.OUTPATIENT}</option>
-                                <option value={PatientStatus.DISCHARGED}>{PatientStatus.DISCHARGED}</option>
+                            <label className="block text-sm font-medium text-slate-700 mb-1">Status</label>
+                            <select 
+                                value={status}
+                                onChange={(e) => setStatus(e.target.value as PatientStatus)}
+                                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none bg-white"
+                            >
+                                <option value={PatientStatus.ADMITTED}>Rawat Inap</option>
+                                <option value={PatientStatus.OUTPATIENT}>Rawat Jalan</option>
+                                <option value={PatientStatus.DISCHARGED}>Pulang</option>
                             </select>
                         </div>
                     </div>
 
-                    {/* Financial Data Section */}
-                    <div className="pt-2 border-t border-slate-100 mt-2">
-                        <h4 className="text-sm font-bold text-slate-800 mb-3">Data Biaya (Cost Control)</h4>
-                        <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-1">Tanggal Masuk</label>
+                            <input 
+                                type="date" 
+                                required 
+                                value={admissionDate}
+                                onChange={(e) => setAdmissionDate(e.target.value)}
+                                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none" 
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-1">Nomor Kamar/Poli</label>
+                            <input 
+                                type="text" 
+                                value={roomNumber}
+                                onChange={(e) => setRoomNumber(e.target.value)}
+                                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none" 
+                                placeholder="Cth: Anggrek 1"
+                            />
+                        </div>
+                    </div>
+
+                    <div className="border-t border-slate-100 pt-4 mt-2">
+                        <h4 className="text-sm font-bold text-slate-800 mb-3">Estimasi Biaya</h4>
+                        <div className="space-y-3">
                             <div>
                                 <label className="block text-xs font-medium text-slate-600 mb-1">Tagihan RS (Real Cost)</label>
                                 <div className="relative">
                                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-xs">Rp</span>
                                     <input 
                                         type="number" 
-                                        value={billingAmount} 
-                                        onChange={e => setBillingAmount(e.target.value)} 
-                                        className="w-full pl-8 pr-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none text-sm" 
+                                        value={billingAmount}
+                                        onChange={(e) => setBillingAmount(e.target.value)}
+                                        className="w-full pl-8 pr-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none" 
                                         placeholder="0"
                                     />
                                 </div>
                             </div>
                             <div>
-                                <label className="block text-xs font-medium text-slate-600 mb-1">Tarif INA-CBG (Override)</label>
+                                <label className="block text-xs font-medium text-slate-600 mb-1">Tarif INA-CBG (Klaim)</label>
                                 <div className="relative">
                                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-xs">Rp</span>
                                     <input 
                                         type="number" 
-                                        value={inaCbgAmount} 
-                                        onChange={e => setInaCbgAmount(e.target.value)} 
-                                        className="w-full pl-8 pr-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none text-sm" 
-                                        placeholder="Auto jika kosong"
+                                        value={inaCbgAmount}
+                                        onChange={(e) => setInaCbgAmount(e.target.value)}
+                                        className="w-full pl-8 pr-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none" 
+                                        placeholder="0"
                                     />
                                 </div>
                             </div>
                         </div>
-                        <p className="text-[10px] text-slate-400 mt-1 italic">
-                            *Tarif INA-CBG akan otomatis diambil dari database jika dibiarkan kosong.
-                        </p>
                     </div>
 
                     <div className="flex gap-3 pt-4 border-t border-slate-100 mt-2">
@@ -493,6 +874,40 @@ export const PatientList: React.FC<PatientListProps> = ({
                         <button type="submit" className="flex-1 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 font-medium">Simpan</button>
                     </div>
                 </form>
+            </div>
+        </div>
+      )}
+
+      {/* Note Modal */}
+      {isNoteModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+            <div className="bg-white rounded-2xl shadow-xl max-w-sm w-full p-6 animate-fade-in">
+                <h3 className="text-lg font-bold text-slate-800 mb-4">Catatan Usulan</h3>
+                <div className="mb-4">
+                    <p className="text-sm text-slate-600 mb-2">Pasien: <span className="font-semibold">{notePatient?.name}</span></p>
+                    <textarea 
+                        value={noteContent}
+                        onChange={(e) => setNoteContent(e.target.value)}
+                        rows={4}
+                        className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none resize-none text-sm"
+                        placeholder="Tulis catatan usulan verifikasi..."
+                        autoFocus
+                    />
+                </div>
+                <div className="flex gap-3">
+                    <button 
+                        onClick={() => setIsNoteModalOpen(false)}
+                        className="flex-1 px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 font-medium text-sm"
+                    >
+                        Batal
+                    </button>
+                    <button 
+                        onClick={handleSaveNote}
+                        className="flex-1 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 font-medium text-sm"
+                    >
+                        Simpan Note
+                    </button>
+                </div>
             </div>
         </div>
       )}

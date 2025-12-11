@@ -41,6 +41,7 @@ export interface Patient {
   roomNumber?: string;
   billingAmount?: number;
   inaCbgAmount?: number;
+  verifierNote?: string;
 }
 
 export interface INACBGResponse {

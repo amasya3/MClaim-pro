@@ -578,14 +578,14 @@ export const PatientList: React.FC<PatientListProps> = ({
         </div>
         <button 
           onClick={handleOpenAdd}
-          className="bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-lg font-medium shadow-sm transition-colors flex items-center gap-2"
+          className="bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-lg font-medium shadow-sm transition-colors flex items-center gap-2 print:hidden"
         >
           <span className="material-icons-round text-sm">add</span>
           Pasien Baru
         </button>
       </div>
 
-      <div className="flex flex-col md:flex-row gap-4 items-center">
+      <div className="flex flex-col md:flex-row gap-4 items-center print:hidden">
         <div className="bg-white p-1 rounded-xl border border-slate-200 flex shadow-sm">
             <button 
                 onClick={() => setActiveTab('active')}
@@ -636,18 +636,11 @@ export const PatientList: React.FC<PatientListProps> = ({
                 <span className="material-icons-round text-blue-600 group-hover:text-blue-700">description</span>
             </button>
             <button 
-                onClick={handleExportToExcel}
+                onClick={() => window.print()}
                 className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 px-3 rounded-xl shadow-sm transition-colors flex items-center justify-center group"
-                title="Export Excel"
+                title="Print Data"
             >
-                <span className="w-5 h-5 flex items-center justify-center">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" className="w-5 h-5 text-emerald-600" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                        <polyline points="14 2 14 8 20 8" />
-                        <line x1="8" y1="13" x2="16" y2="17" />
-                        <line x1="16" y1="13" x2="8" y2="17" />
-                    </svg>
-                </span>
+                <span className="material-icons-round text-slate-600 group-hover:text-slate-800">print</span>
             </button>
             <input 
                 type="file" 
@@ -660,7 +653,7 @@ export const PatientList: React.FC<PatientListProps> = ({
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto print:overflow-visible">
             <table className="w-full text-left border-collapse">
                 <thead>
                     <tr className="bg-slate-50 border-b border-slate-200 text-xs uppercase text-slate-500 font-semibold tracking-wider">
@@ -672,10 +665,10 @@ export const PatientList: React.FC<PatientListProps> = ({
                         <th className="px-4 py-4 text-right">Tagihan RS</th>
                         <th className="px-4 py-4 text-right">Selisih</th>
                         <th className="px-4 py-4 w-32">Note Usulan</th>
-                        <th className="px-6 py-4 text-right">Aksi</th>
+                        <th className="px-6 py-4 text-right print:hidden">Aksi</th>
                     </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-slate-100" style={{ fontFamily: 'Arial, sans-serif' }}>
                     {filteredPatients.map((patient) => {
                         const bill = patient.billingAmount || 0;
                         const effectiveTariff = getEffectiveTariff(patient);
@@ -736,7 +729,7 @@ export const PatientList: React.FC<PatientListProps> = ({
                                         {patient.verifierNote ? patient.verifierNote : <span className="text-slate-400 italic">Isi note...</span>}
                                     </button>
                                 </td>
-                                <td className="px-6 py-4 text-right">
+                                <td className="px-6 py-4 text-right print:hidden">
                                     <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                                         <button 
                                             onClick={(e) => handleOpenEdit(patient, e)}
@@ -771,7 +764,7 @@ export const PatientList: React.FC<PatientListProps> = ({
 
       {/* Add/Edit Patient Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm print:hidden">
             <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 animate-fade-in max-h-[90vh] overflow-y-auto">
                 <h3 className="text-lg font-bold text-slate-800 mb-4">{editingId ? 'Edit Pasien' : 'Tambah Pasien Baru'}</h3>
                 
@@ -880,7 +873,7 @@ export const PatientList: React.FC<PatientListProps> = ({
 
       {/* Note Modal */}
       {isNoteModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm print:hidden">
             <div className="bg-white rounded-2xl shadow-xl max-w-sm w-full p-6 animate-fade-in">
                 <h3 className="text-lg font-bold text-slate-800 mb-4">Catatan Usulan</h3>
                 <div className="mb-4">

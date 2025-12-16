@@ -20,6 +20,9 @@ export const PatientDetail: React.FC<PatientDetailProps> = ({ patient, onBack, o
   
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
+  
+  // Modal State
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   const resetForm = () => {
     setInputCode('');
@@ -29,12 +32,23 @@ export const PatientDetail: React.FC<PatientDetailProps> = ({ patient, onBack, o
     setAiError(null);
   };
 
+  const handleOpenAdd = () => {
+    resetForm();
+    setIsModalOpen(true);
+  };
+
+  const handleCloseModal = () => {
+    resetForm();
+    setIsModalOpen(false);
+  };
+
   const handleEditClick = (diagnosis: Diagnosis) => {
     setInputCode(diagnosis.code);
     setInputSeverity(diagnosis.severity);
     setInputDescription(diagnosis.description);
     setEditingDiagnosisId(diagnosis.id);
     setAiError(null);
+    setIsModalOpen(true);
   };
 
   const handleDeleteDiagnosis = (diagnosisId: string) => {
@@ -44,7 +58,7 @@ export const PatientDetail: React.FC<PatientDetailProps> = ({ patient, onBack, o
         
         // If we were editing the deleted one, reset form
         if (editingDiagnosisId === diagnosisId) {
-            resetForm();
+            handleCloseModal();
         }
     }
   };
@@ -176,7 +190,7 @@ export const PatientDetail: React.FC<PatientDetailProps> = ({ patient, onBack, o
             onUpdatePatient(updatedPatient);
         }
         
-        resetForm();
+        handleCloseModal();
     } catch (err) {
         setAiError("Gagal memproses data. Coba lagi.");
     } finally {
@@ -216,118 +230,23 @@ export const PatientDetail: React.FC<PatientDetailProps> = ({ patient, onBack, o
         </div>
       </div>
 
-      <div className="flex gap-6 flex-1 min-h-0">
-        {/* Left Column: Input Form */}
-        <div className="w-1/3 flex flex-col gap-6 overflow-y-auto pr-2 pb-4">
-            {/* Input Section */}
-            <div className={`p-5 rounded-2xl shadow-sm border transition-all sticky top-0 ${editingDiagnosisId ? 'bg-orange-50 border-orange-200' : 'bg-white border-slate-200'}`}>
-                <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-2">
-                        <span className={`material-icons-round ${editingDiagnosisId ? 'text-orange-600' : 'text-teal-600'}`}>
-                            {editingDiagnosisId ? 'edit_note' : 'post_add'}
-                        </span>
-                        <h3 className={`font-bold ${editingDiagnosisId ? 'text-orange-800' : 'text-slate-800'}`}>
-                            {editingDiagnosisId ? 'Edit Diagnosis' : 'Tambah Diagnosis'}
-                        </h3>
-                    </div>
-                    {editingDiagnosisId && (
-                        <button onClick={resetForm} className="text-xs text-orange-600 font-medium hover:underline">
-                            Batal
-                        </button>
-                    )}
-                </div>
-                
-                <p className="text-xs text-slate-500 mb-4">
-                    {editingDiagnosisId 
-                        ? 'Ubah detail diagnosis. Checklist akan di-reset HANYA jika kode berubah.' 
-                        : 'Masukkan kode INA-CBG/ICD-10 untuk memulai.'}
-                </p>
-                
-                <div className="space-y-4">
-                    <div className="flex gap-3">
-                        <div className="flex-1">
-                            <label className="block text-xs font-semibold text-slate-600 mb-1">Kode <span className="text-rose-500">*</span></label>
-                            <div className="relative">
-                                <input 
-                                    type="text"
-                                    value={inputCode}
-                                    onChange={(e) => setInputCode(e.target.value)}
-                                    placeholder="J45.9"
-                                    className="w-full pl-3 pr-8 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none font-mono uppercase"
-                                    onKeyDown={(e) => e.key === 'Enter' && handleCheckCode()}
-                                />
-                                {inputCode && !isAnalyzing && (
-                                    <button 
-                                        onClick={handleCheckCode}
-                                        className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-teal-600"
-                                        title="Cek Database / AI"
-                                    >
-                                        <span className="material-icons-round text-lg">search</span>
-                                    </button>
-                                )}
-                            </div>
-                        </div>
-                        <div className="w-1/3">
-                            <label className="block text-xs font-semibold text-slate-600 mb-1">Severity</label>
-                            <select 
-                                value={inputSeverity} 
-                                onChange={(e) => setInputSeverity(e.target.value as any)}
-                                className="w-full px-2 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none bg-white"
-                            >
-                                <option value="I">I - Ringan</option>
-                                <option value="II">II - Sedang</option>
-                                <option value="III">III - Berat</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <div>
-                        <label className="block text-xs font-semibold text-slate-600 mb-1">Deskripsi Penyakit</label>
-                        <textarea 
-                            value={inputDescription}
-                            onChange={(e) => setInputDescription(e.target.value)}
-                            rows={3}
-                            placeholder="Deskripsi otomatis atau ketik manual..."
-                            className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none resize-none"
-                        />
-                    </div>
-                </div>
-
-                {aiError && <p className="text-xs text-rose-500 mt-3">{aiError}</p>}
-                
-                <div className="flex gap-2 mt-4">
-                    <button 
-                        onClick={handleProcessDiagnosis}
-                        disabled={isAnalyzing || !inputCode}
-                        className={`flex-1 text-white py-2.5 rounded-xl font-medium text-sm transition-all flex justify-center items-center gap-2 shadow-sm disabled:shadow-none ${
-                            editingDiagnosisId 
-                            ? 'bg-orange-600 hover:bg-orange-700 shadow-orange-200 disabled:bg-slate-300' 
-                            : 'bg-teal-600 hover:bg-teal-700 shadow-teal-200 disabled:bg-slate-300'
-                        }`}
-                    >
-                        {isAnalyzing ? (
-                            <>
-                                <span className="animate-spin material-icons-round text-sm">refresh</span> Memproses...
-                            </>
-                        ) : (
-                            editingDiagnosisId ? "Update Data" : "Simpan Diagnosis"
-                        )}
-                    </button>
-                </div>
-            </div>
-            
-            <div className="bg-blue-50 p-4 rounded-xl border border-blue-100">
-                <p className="text-xs text-blue-800 leading-relaxed">
-                    <span className="font-bold">Tips:</span> Apabila deskripsi dikosongkan, sistem otomatis mengambil deskripsi dari Database INA-CBGs saat disimpan.
-                </p>
-            </div>
+      <div className="flex flex-col flex-1 min-h-0">
+        <div className="flex justify-between items-center mb-4 px-1">
+             <h3 className="text-lg font-bold text-slate-700">Daftar Diagnosis</h3>
+             <button 
+                onClick={handleOpenAdd}
+                className="bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-lg font-medium shadow-sm transition-colors flex items-center gap-2"
+             >
+                <span className="material-icons-round text-sm">add</span>
+                Tambah Diagnosis
+             </button>
         </div>
 
-        {/* Right Column: List of Diagnoses */}
-        <div className="flex-1 overflow-y-auto pr-2 pb-4 space-y-6">
+        {/* List of Diagnoses */}
+        <div className="flex-1 overflow-y-auto pb-4 space-y-6">
             {patient.diagnoses.length > 0 ? (
                 patient.diagnoses.map((diagnosis, index) => (
-                    <div key={diagnosis.id} className={`bg-white rounded-2xl shadow-sm border overflow-hidden ${editingDiagnosisId === diagnosis.id ? 'border-orange-300 ring-2 ring-orange-100' : 'border-slate-200'}`}>
+                    <div key={diagnosis.id} className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
                         {/* Card Header */}
                         <div className="p-6 border-b border-slate-100 bg-slate-50/50">
                             <div className="flex flex-col gap-4">
@@ -390,7 +309,6 @@ export const PatientDetail: React.FC<PatientDetailProps> = ({ patient, onBack, o
                                 </div>
                             </div>
                             
-                            {/* Progress Bar */}
                             <div className="w-full bg-slate-100 rounded-full h-1.5 mb-5">
                                 <div 
                                     className="bg-teal-500 h-1.5 rounded-full transition-all duration-500 ease-out" 
@@ -398,7 +316,7 @@ export const PatientDetail: React.FC<PatientDetailProps> = ({ patient, onBack, o
                                 ></div>
                             </div>
 
-                            <div className="space-y-2">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                 {diagnosis.checklist.map((doc) => (
                                     <label key={doc.id} className={`flex items-center p-3 rounded-lg border transition-all cursor-pointer ${
                                         doc.isChecked 
@@ -437,12 +355,121 @@ export const PatientDetail: React.FC<PatientDetailProps> = ({ patient, onBack, o
                     </div>
                     <h3 className="text-lg font-bold text-slate-700">Belum Ada Diagnosis</h3>
                     <p className="text-slate-500 max-w-sm mt-2 text-sm">
-                        Silakan input kode INA-CBG di form sebelah kiri untuk memulai. Anda bisa menambahkan lebih dari satu kode.
+                        Klik tombol "Tambah Diagnosis" di atas untuk memasukkan kode INA-CBG.
                     </p>
                 </div>
             )}
         </div>
       </div>
+
+      {/* Modal Form */}
+      {isModalOpen && (
+         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-fade-in">
+            <div className="bg-white rounded-2xl shadow-xl max-w-lg w-full p-6 max-h-[90vh] overflow-y-auto">
+                 <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                        <span className={`material-icons-round ${editingDiagnosisId ? 'text-orange-600' : 'text-teal-600'}`}>
+                            {editingDiagnosisId ? 'edit_note' : 'post_add'}
+                        </span>
+                        <h3 className={`font-bold ${editingDiagnosisId ? 'text-orange-800' : 'text-slate-800'}`}>
+                            {editingDiagnosisId ? 'Edit Diagnosis' : 'Tambah Diagnosis'}
+                        </h3>
+                    </div>
+                </div>
+                
+                <p className="text-xs text-slate-500 mb-4">
+                    {editingDiagnosisId 
+                        ? 'Ubah detail diagnosis. Checklist akan di-reset HANYA jika kode berubah.' 
+                        : 'Masukkan kode INA-CBG/ICD-10 untuk memulai.'}
+                </p>
+                
+                <div className="space-y-4">
+                    <div className="flex gap-3">
+                        <div className="flex-1">
+                            <label className="block text-xs font-semibold text-slate-600 mb-1">Kode <span className="text-rose-500">*</span></label>
+                            <div className="relative">
+                                <input 
+                                    type="text"
+                                    value={inputCode}
+                                    onChange={(e) => setInputCode(e.target.value)}
+                                    placeholder="J45.9"
+                                    className="w-full pl-3 pr-8 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none font-mono uppercase"
+                                    onKeyDown={(e) => e.key === 'Enter' && handleCheckCode()}
+                                    autoFocus
+                                />
+                                {inputCode && !isAnalyzing && (
+                                    <button 
+                                        onClick={handleCheckCode}
+                                        className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-teal-600"
+                                        title="Cek Database / AI"
+                                    >
+                                        <span className="material-icons-round text-lg">search</span>
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                        <div className="w-1/3">
+                            <label className="block text-xs font-semibold text-slate-600 mb-1">Severity</label>
+                            <select 
+                                value={inputSeverity} 
+                                onChange={(e) => setInputSeverity(e.target.value as any)}
+                                className="w-full px-2 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none bg-white"
+                            >
+                                <option value="I">I - Ringan</option>
+                                <option value="II">II - Sedang</option>
+                                <option value="III">III - Berat</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label className="block text-xs font-semibold text-slate-600 mb-1">Deskripsi Penyakit</label>
+                        <textarea 
+                            value={inputDescription}
+                            onChange={(e) => setInputDescription(e.target.value)}
+                            rows={3}
+                            placeholder="Deskripsi otomatis atau ketik manual..."
+                            className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none resize-none"
+                        />
+                    </div>
+                </div>
+
+                {aiError && <p className="text-xs text-rose-500 mt-3">{aiError}</p>}
+                
+                <div className="flex gap-3 mt-6">
+                    <button 
+                        onClick={handleCloseModal} 
+                        className="flex-1 px-4 py-2 border border-slate-300 text-slate-700 rounded-xl hover:bg-slate-50 font-medium text-sm"
+                    >
+                        Batal
+                    </button>
+                    <button 
+                        onClick={handleProcessDiagnosis}
+                        disabled={isAnalyzing || !inputCode}
+                        className={`flex-1 text-white py-2.5 rounded-xl font-medium text-sm transition-all flex justify-center items-center gap-2 shadow-sm disabled:shadow-none ${
+                            editingDiagnosisId 
+                            ? 'bg-orange-600 hover:bg-orange-700 shadow-orange-200 disabled:bg-slate-300' 
+                            : 'bg-teal-600 hover:bg-teal-700 shadow-teal-200 disabled:bg-slate-300'
+                        }`}
+                    >
+                        {isAnalyzing ? (
+                            <>
+                                <span className="animate-spin material-icons-round text-sm">refresh</span> Memproses...
+                            </>
+                        ) : (
+                            editingDiagnosisId ? "Update Data" : "Simpan Diagnosis"
+                        )}
+                    </button>
+                </div>
+
+                <div className="bg-blue-50 p-3 rounded-xl border border-blue-100 mt-4">
+                    <p className="text-xs text-blue-800 leading-relaxed">
+                        <span className="font-bold">Tips:</span> Apabila deskripsi dikosongkan, sistem otomatis mengambil deskripsi dari Database INA-CBGs saat disimpan.
+                    </p>
+                </div>
+            </div>
+         </div>
+      )}
     </div>
   );
 };

@@ -1,5 +1,5 @@
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Patient, PatientStatus, Gender, INACBGTemplate } from '../types';
 
 interface PatientListProps {
@@ -25,6 +25,13 @@ export const PatientList: React.FC<PatientListProps> = ({
   const [editingId, setEditingId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
+  // File Menu State
+  const [isFileMenuOpen, setIsFileMenuOpen] = useState(false);
+  const fileMenuRef = useRef<HTMLDivElement>(null);
+
+  // Bulk Selection State
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  
   // Note Modal State
   const [isNoteModalOpen, setIsNoteModalOpen] = useState(false);
   const [notePatient, setNotePatient] = useState<Patient | null>(null);
@@ -38,6 +45,19 @@ export const PatientList: React.FC<PatientListProps> = ({
   const [roomNumber, setRoomNumber] = useState('');
   const [billingAmount, setBillingAmount] = useState('');
   const [inaCbgAmount, setInaCbgAmount] = useState('');
+
+  // Close menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (fileMenuRef.current && !fileMenuRef.current.contains(event.target as Node)) {
+        setIsFileMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
 
   // Filter logic based on Tab + Search
   const filteredPatients = patients.filter(p => {
@@ -54,6 +74,100 @@ export const PatientList: React.FC<PatientListProps> = ({
         (p.roomNumber && p.roomNumber.toLowerCase().includes(searchTerm.toLowerCase()))
     );
   });
+
+  // Bulk Selection Handlers
+  const handleToggleSelect = (id: string) => {
+    const newSelected = new Set(selectedIds);
+    if (newSelected.has(id)) {
+        newSelected.delete(id);
+    } else {
+        newSelected.add(id);
+    }
+    setSelectedIds(newSelected);
+  };
+
+  const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.checked) {
+        const newSelected = new Set(selectedIds);
+        filteredPatients.forEach(p => newSelected.add(p.id));
+        setSelectedIds(newSelected);
+    } else {
+        const newSelected = new Set(selectedIds);
+        filteredPatients.forEach(p => newSelected.delete(p.id));
+        setSelectedIds(newSelected);
+    }
+  };
+
+  const isAllSelected = filteredPatients.length > 0 && filteredPatients.every(p => selectedIds.has(p.id));
+
+  const handleBulkDelete = () => {
+    if (selectedIds.size === 0) return;
+    if (window.confirm(`Apakah anda yakin ingin menghapus ${selectedIds.size} data pasien yang dipilih?`)) {
+        selectedIds.forEach(id => onDeletePatient(id));
+        setSelectedIds(new Set());
+    }
+  };
+
+  const handleBulkExport = () => {
+    const patientsToExport = patients.filter(p => selectedIds.has(p.id));
+    exportPatients(patientsToExport, `mclaim_selected_${new Date().toISOString().slice(0,10)}.csv`);
+  };
+
+  const handleExportAll = () => {
+    exportPatients(filteredPatients, `mclaim_all_${new Date().toISOString().slice(0,10)}.csv`);
+    setIsFileMenuOpen(false);
+  };
+
+  const exportPatients = (data: Patient[], filename: string) => {
+    // Headers matching the table columns
+    const headers = [
+      "Pasien", "Lama Rawat", "Kamar", "Diagnosis", 
+      "Tarif INA-CBG", "Tagihan RS", "Selisih", "Note Usulan"
+    ];
+
+    // Helper for safe CSV fields (handles quotes)
+    const safe = (val: string | number | undefined | null) => {
+        if (val === undefined || val === null) return '""';
+        const str = String(val);
+        // Escape quotes by doubling them
+        return `"${str.replace(/"/g, '""')}"`;
+    };
+
+    // Data rows
+    const rows = data.map(p => {
+        const diagnosis = p.diagnoses[0];
+        const diagnosisCode = diagnosis ? diagnosis.code : '-';
+        
+        const lengthOfStay = calculateLengthOfStay(p.admissionDate, p.lastVisit, p.status === PatientStatus.DISCHARGED);
+        const bill = p.billingAmount || 0;
+        const effectiveTariff = getEffectiveTariff(p).amount;
+        const variance = effectiveTariff - bill;
+
+        return [
+            safe(p.name),
+            safe(lengthOfStay),
+            safe(p.roomNumber || '-'),
+            safe(diagnosisCode),
+            effectiveTariff,
+            bill,
+            variance,
+            safe(p.verifierNote || '')
+        ].join(";"); // Use semicolon for better Excel compatibility in ID region
+    });
+
+    // Add BOM (\uFEFF) so Excel recognizes UTF-8 encoding
+    const csvContent = "\uFEFF" + headers.join(";") + "\n" + rows.join("\n");
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", filename);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   const resetForm = () => {
     setName('');
@@ -88,6 +202,12 @@ export const PatientList: React.FC<PatientListProps> = ({
     e.stopPropagation();
     if (window.confirm(`Apakah anda yakin ingin menghapus data pasien ${patient.name}?`)) {
         onDeletePatient(patient.id);
+        // Also remove from selection if present
+        if (selectedIds.has(patient.id)) {
+            const newSelected = new Set(selectedIds);
+            newSelected.delete(patient.id);
+            setSelectedIds(newSelected);
+        }
     }
   };
 
@@ -201,6 +321,7 @@ export const PatientList: React.FC<PatientListProps> = ({
 
   const handleImportClick = () => {
     fileInputRef.current?.click();
+    setIsFileMenuOpen(false);
   };
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -516,57 +637,7 @@ export const PatientList: React.FC<PatientListProps> = ({
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-  };
-
-  const handleExportToExcel = () => {
-    // Headers matching the table columns
-    const headers = [
-      "Pasien", "Lama Rawat", "Kamar", "Diagnosis", 
-      "Tarif INA-CBG", "Tagihan RS", "Selisih", "Note Usulan"
-    ];
-
-    // Helper for safe CSV fields (handles quotes)
-    const safe = (val: string | number | undefined | null) => {
-        if (val === undefined || val === null) return '""';
-        const str = String(val);
-        // Escape quotes by doubling them
-        return `"${str.replace(/"/g, '""')}"`;
-    };
-
-    // Data rows
-    const rows = filteredPatients.map(p => {
-        const diagnosis = p.diagnoses[0];
-        const diagnosisCode = diagnosis ? diagnosis.code : '-';
-        
-        const lengthOfStay = calculateLengthOfStay(p.admissionDate, p.lastVisit, p.status === PatientStatus.DISCHARGED);
-        const bill = p.billingAmount || 0;
-        const effectiveTariff = getEffectiveTariff(p).amount;
-        const variance = effectiveTariff - bill;
-
-        return [
-            safe(p.name),
-            safe(lengthOfStay),
-            safe(p.roomNumber || '-'),
-            safe(diagnosisCode),
-            effectiveTariff,
-            bill,
-            variance,
-            safe(p.verifierNote || '')
-        ].join(";"); // Use semicolon for better Excel compatibility in ID region
-    });
-
-    // Add BOM (\uFEFF) so Excel recognizes UTF-8 encoding
-    const csvContent = "\uFEFF" + headers.join(";") + "\n" + rows.join("\n");
-
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    
-    const link = document.createElement("a");
-    link.setAttribute("href", url);
-    link.setAttribute("download", `mclaim_export_${new Date().toISOString().slice(0,10)}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    setIsFileMenuOpen(false);
   };
 
   return (
@@ -621,23 +692,46 @@ export const PatientList: React.FC<PatientListProps> = ({
                 />
             </div>
             
-            <button 
-                onClick={handleImportClick}
-                className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 px-3 rounded-xl shadow-sm transition-colors flex items-center justify-center group"
-                title="Import Excel (CSV)"
-            >
-                <span className="material-icons-round text-teal-600 group-hover:text-teal-700">upload_file</span>
-            </button>
-            <button 
-                onClick={handleDownloadTemplate}
-                className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 px-3 rounded-xl shadow-sm transition-colors flex items-center justify-center group"
-                title="Download Template CSV"
-            >
-                <span className="material-icons-round text-blue-600 group-hover:text-blue-700">description</span>
-            </button>
+            <div className="relative" ref={fileMenuRef}>
+                <button 
+                    onClick={() => setIsFileMenuOpen(!isFileMenuOpen)}
+                    className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 px-3 rounded-xl shadow-sm transition-colors flex items-center justify-center group h-[42px]"
+                    title="Menu File (Import/Export)"
+                >
+                    <span className="material-icons-round text-teal-600 group-hover:text-teal-700">upload_file</span>
+                </button>
+                
+                {isFileMenuOpen && (
+                    <div className="absolute right-0 top-full mt-2 w-56 bg-white rounded-xl shadow-xl border border-slate-100 py-2 z-20 animate-fade-in">
+                        <button 
+                            onClick={handleImportClick}
+                            className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-3 transition-colors"
+                        >
+                            <span className="material-icons-round text-teal-600 text-lg">upload_file</span>
+                            Import Excel (CSV)
+                        </button>
+                        <button 
+                            onClick={handleDownloadTemplate}
+                            className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-3 transition-colors"
+                        >
+                            <span className="material-icons-round text-blue-600 text-lg">description</span>
+                            Download Template CSV
+                        </button>
+                        <div className="my-1 border-t border-slate-100"></div>
+                        <button 
+                            onClick={handleExportAll}
+                            className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-3 transition-colors"
+                        >
+                            <span className="material-icons-round text-indigo-600 text-lg">download</span>
+                            Export Semua Data
+                        </button>
+                    </div>
+                )}
+            </div>
+
             <button 
                 onClick={() => window.print()}
-                className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 px-3 rounded-xl shadow-sm transition-colors flex items-center justify-center group"
+                className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 px-3 rounded-xl shadow-sm transition-colors flex items-center justify-center group h-[42px]"
                 title="Print Data"
             >
                 <span className="material-icons-round text-slate-600 group-hover:text-slate-800">print</span>
@@ -652,11 +746,44 @@ export const PatientList: React.FC<PatientListProps> = ({
         </div>
       </div>
 
+      {selectedIds.size > 0 && (
+        <div className="bg-teal-50 border border-teal-200 rounded-xl p-3 flex items-center justify-between animate-fade-in print:hidden">
+            <div className="flex items-center gap-3">
+                <span className="bg-teal-600 text-white text-xs font-bold px-2 py-1 rounded-lg">{selectedIds.size} Dipilih</span>
+                <span className="text-sm text-teal-800 font-medium">Pasien terpilih dari daftar saat ini</span>
+            </div>
+            <div className="flex items-center gap-2">
+                <button 
+                    onClick={handleBulkExport}
+                    className="flex items-center gap-1 bg-white border border-teal-200 text-teal-700 hover:bg-teal-100 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors"
+                >
+                    <span className="material-icons-round text-sm">download</span>
+                    Export
+                </button>
+                <button 
+                    onClick={handleBulkDelete}
+                    className="flex items-center gap-1 bg-white border border-rose-200 text-rose-600 hover:bg-rose-50 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors"
+                >
+                    <span className="material-icons-round text-sm">delete</span>
+                    Hapus
+                </button>
+            </div>
+        </div>
+      )}
+
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
         <div className="overflow-x-auto print:overflow-visible">
             <table className="w-full text-left border-collapse">
                 <thead>
-                    <tr className="bg-slate-50 border-b border-slate-200 text-xs uppercase text-slate-500 font-semibold tracking-wider">
+                    <tr className="bg-slate-50 border-b border-slate-200 text-xs uppercase text-slate-500 font-semibold tracking-wider group">
+                        <th className="px-4 py-4 w-10 print:hidden">
+                             <input 
+                                type="checkbox" 
+                                className={`w-4 h-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500 cursor-pointer transition-opacity duration-200 ${selectedIds.size > 0 ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
+                                checked={isAllSelected}
+                                onChange={handleSelectAll}
+                             />
+                        </th>
                         <th className="px-6 py-4">Pasien</th>
                         <th className="px-4 py-4 w-32">Lama Rawat</th>
                         <th className="px-4 py-4">Kamar</th>
@@ -678,9 +805,19 @@ export const PatientList: React.FC<PatientListProps> = ({
                         const hasDiagnosis = patient.diagnoses.length > 0;
                         const activeDiagnosis = patient.diagnoses[0];
                         const lengthOfStay = calculateLengthOfStay(patient.admissionDate, patient.lastVisit, patient.status === PatientStatus.DISCHARGED);
+                        const isSelected = selectedIds.has(patient.id);
 
                         return (
-                            <tr key={patient.id} className="hover:bg-slate-50 transition-colors group">
+                            <tr key={patient.id} className={`transition-colors group ${isSelected ? 'bg-teal-50/30' : 'hover:bg-slate-50'}`}>
+                                <td className="px-4 py-4 print:hidden">
+                                     <input 
+                                        type="checkbox" 
+                                        className={`w-4 h-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500 cursor-pointer transition-opacity duration-200 ${isSelected || selectedIds.size > 0 ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
+                                        checked={isSelected}
+                                        onChange={() => handleToggleSelect(patient.id)}
+                                        onClick={(e) => e.stopPropagation()}
+                                     />
+                                </td>
                                 <td className="px-6 py-4 cursor-pointer" onClick={() => onSelectPatient(patient)}>
                                     <div className="flex items-center gap-3">
                                         <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold shadow-sm ${
@@ -752,7 +889,7 @@ export const PatientList: React.FC<PatientListProps> = ({
                     })}
                     {filteredPatients.length === 0 && (
                         <tr>
-                            <td colSpan={9} className="px-6 py-12 text-center text-slate-400">
+                            <td colSpan={10} className="px-6 py-12 text-center text-slate-400">
                                 Data tidak ditemukan.
                             </td>
                         </tr>

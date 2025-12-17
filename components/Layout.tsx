@@ -24,6 +24,7 @@ export const Layout: React.FC<LayoutProps> = ({
   const [isEditingVerifier, setIsEditingVerifier] = useState(false);
   const [tempVerifierName, setTempVerifierName] = useState("");
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const navItems = [
     { id: 'DASHBOARD', label: 'Dashboard', icon: 'dashboard' },
@@ -58,11 +59,29 @@ export const Layout: React.FC<LayoutProps> = ({
     }
   }, [isSidebarCollapsed]);
 
+  // Close mobile menu when navigating
+  useEffect(() => {
+    setIsMobileMenuOpen(false);
+  }, [currentView]);
+
   return (
-    <div className="flex h-screen bg-slate-50 text-slate-800 font-sans">
+    <div className="flex h-screen bg-slate-50 text-slate-800 font-sans overflow-hidden">
+      {/* Mobile Overlay */}
+      {isMobileMenuOpen && (
+        <div 
+          className="fixed inset-0 bg-slate-900/50 z-20 md:hidden transition-opacity"
+          onClick={() => setIsMobileMenuOpen(false)}
+        />
+      )}
+
       {/* Sidebar */}
-      <aside className={`bg-white border-r border-slate-200 flex-shrink-0 flex flex-col shadow-sm z-10 hidden md:flex transition-all duration-300 print:hidden ${isSidebarCollapsed ? 'w-20' : 'w-64'}`}>
-        <div className="h-20 flex items-center px-4 border-b border-slate-100 relative">
+      <aside className={`
+          bg-white border-r border-slate-200 flex-shrink-0 flex flex-col shadow-sm z-30 transition-all duration-300 print:hidden 
+          fixed md:relative inset-y-0 left-0 h-full
+          ${isSidebarCollapsed ? 'w-20' : 'w-64'}
+          ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
+      `}>
+        <div className="h-20 flex items-center px-4 border-b border-slate-100 relative shrink-0">
           <div className="w-10 h-10 bg-green-600 rounded-full flex items-center justify-center shadow-sm border-2 border-green-800 shrink-0 mx-auto">
              <svg className="w-6 h-6 text-white drop-shadow-sm" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="6">
                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
@@ -76,14 +95,14 @@ export const Layout: React.FC<LayoutProps> = ({
 
           <button 
                 onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-                className="absolute -right-3 top-7 bg-white border border-slate-200 rounded-full p-1 shadow-sm text-slate-400 hover:text-teal-600 hover:border-teal-200 transition-colors z-20"
+                className="absolute -right-3 top-7 bg-white border border-slate-200 rounded-full p-1 shadow-sm text-slate-400 hover:text-teal-600 hover:border-teal-200 transition-colors z-20 hidden md:flex"
                 title={isSidebarCollapsed ? "Expand Menu" : "Collapse Menu"}
             >
                  <span className="material-icons-round text-sm">{isSidebarCollapsed ? 'chevron_right' : 'chevron_left'}</span>
             </button>
         </div>
 
-        <nav className="flex-1 p-4 space-y-2">
+        <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
           {navItems.map((item) => (
             <button
               key={item.id}
@@ -105,7 +124,7 @@ export const Layout: React.FC<LayoutProps> = ({
           ))}
         </nav>
 
-        <div className="p-4 border-t border-slate-100">
+        <div className="p-4 border-t border-slate-100 shrink-0">
           {isEditingVerifier ? (
             <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 transition-all">
                 <label className="text-xs font-semibold text-slate-500 mb-1 block">Nama Verifikator</label>
@@ -162,21 +181,26 @@ export const Layout: React.FC<LayoutProps> = ({
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-col h-screen overflow-hidden print:h-auto print:overflow-visible">
+      <main className="flex-1 flex flex-col h-screen overflow-hidden print:h-auto print:overflow-visible w-full relative">
         {/* Mobile Header */}
-        <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 md:hidden shrink-0 print:hidden">
-           <div className="flex items-center">
-             <div className="w-10 h-10 bg-green-600 rounded-full flex items-center justify-center mr-3 border-2 border-green-800 shrink-0 shadow-sm">
-                <svg className="w-6 h-6 text-white drop-shadow-sm" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="6">
-                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-                </svg>
-             </div>
-             <div>
-                <span className="font-bold text-lg block leading-none">MClaim</span>
-                <span className="text-[10px] text-slate-500 uppercase">{hospitalName}</span>
+        <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 md:hidden shrink-0 print:hidden relative z-10">
+           <div className="flex items-center gap-3">
+             <button 
+                onClick={() => setIsMobileMenuOpen(true)}
+                className="p-2 -ml-2 text-slate-500 hover:bg-slate-100 rounded-lg transition-colors"
+             >
+                <span className="material-icons-round">menu</span>
+             </button>
+             <div className="flex items-center">
+                <div className="w-8 h-8 bg-green-600 rounded-full flex items-center justify-center mr-2 border-2 border-green-800 shrink-0 shadow-sm">
+                    <svg className="w-5 h-5 text-white drop-shadow-sm" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="6">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                    </svg>
+                </div>
+                <span className="font-bold text-lg text-slate-800">MClaim</span>
              </div>
            </div>
-           <button onClick={onLogout} className="p-2 text-slate-500">
+           <button onClick={onLogout} className="p-2 text-slate-400 hover:text-rose-600">
              <span className="material-icons-round">logout</span>
            </button>
         </header>

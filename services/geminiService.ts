@@ -1,9 +1,10 @@
-import { GoogleGenAI, Type, Schema } from "@google/genai";
+// Updated to follow @google/genai coding guidelines: removed prohibited Schema import and updated model
+import { GoogleGenAI, Type } from "@google/genai";
 import { INACBGResponse } from '../types';
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
-const inaCbgSchema: Schema = {
+const inaCbgSchema = {
   type: Type.OBJECT,
   properties: {
     code: {
@@ -30,8 +31,9 @@ const inaCbgSchema: Schema = {
 
 export const analyzeDiagnosisCode = async (code: string, descriptionHint?: string): Promise<INACBGResponse> => {
   try {
+    // Using gemini-3-pro-preview for complex reasoning task as per guidelines
     const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
+      model: "gemini-3-pro-preview",
       contents: `Provide the official description and a checklist of mandatory documents for the following INA-CBG/ICD-10 code in the Indonesian National Health Insurance (JKN/BPJS) system.
       
       Code: "${code}"

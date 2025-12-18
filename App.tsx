@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Layout } from './components/Layout';
 import { Auth } from './components/Auth';
 import { Dashboard } from './components/Dashboard';
@@ -153,8 +153,6 @@ const initialTemplates: INACBGTemplate[] = [
 
 const initialUsers: User[] = [
   { id: 'u1', username: 'admin', name: 'Admin', role: 'Admin', email: 'admin@mclaim.id', password: '123456' },
-  { id: 'u2', username: 'hartono', name: 'Dr. Hartono', role: 'Verifikator', email: 'hartono@mclaim.id', password: 'password123' },
-  { id: 'u3', username: 'sari', name: 'Sari Rahayu', role: 'Verifikator', email: 'sari@mclaim.id', password: 'password123' },
   { id: 'u4', username: 'makhdum', name: 'dr Ahmad Makhdum Basya', role: 'Verifikator', email: 'makhdum@mclaim.id', password: '123' },
 ];
 
@@ -164,12 +162,24 @@ const App: React.FC = () => {
   const [hospitalName, setHospitalName] = useState("");
   const [currentUser, setCurrentUser] = useState<User | null>(null);
 
+  // Night Mode State
+  const [isDarkMode, setIsDarkMode] = useState(false);
+
   // App State
   const [view, setView] = useState<ViewState>('DASHBOARD');
   const [patients, setPatients] = useState<Patient[]>(initialPatients);
   const [cbgTemplates, setCbgTemplates] = useState<INACBGTemplate[]>(initialTemplates);
   const [users, setUsers] = useState<User[]>(initialUsers);
   const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
+
+  // Sync dark mode class with state
+  useEffect(() => {
+    if (isDarkMode) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [isDarkMode]);
 
   const handleLogin = (hospital: string, user: User) => {
     setHospitalName(hospital);
@@ -254,12 +264,15 @@ const App: React.FC = () => {
         hospitalName={hospitalName}
         currentUser={currentUser}
         onLogout={handleLogout}
+        isDarkMode={isDarkMode}
     >
       {view === 'DASHBOARD' && (
         <Dashboard 
             patients={patients} 
             cbgTemplates={cbgTemplates}
             onSelectPatient={handleSelectPatient}
+            isDarkMode={isDarkMode}
+            onToggleDarkMode={() => setIsDarkMode(!isDarkMode)}
         />
       )}
       
@@ -271,6 +284,7 @@ const App: React.FC = () => {
           onAddPatient={handleAddPatient}
           onUpdatePatientDetails={handleUpdatePatientDetails}
           onDeletePatient={handleDeletePatient}
+          isDarkMode={isDarkMode}
         />
       )}
 
@@ -280,6 +294,7 @@ const App: React.FC = () => {
             onAddTemplate={handleAddTemplate}
             onUpdateTemplate={handleUpdateTemplate}
             onDeleteTemplate={handleDeleteTemplate}
+            isDarkMode={isDarkMode}
         />
       )}
 
@@ -289,6 +304,7 @@ const App: React.FC = () => {
             onAddUser={handleAddUser}
             onUpdateUser={handleUpdateUser}
             onDeleteUser={handleDeleteUser}
+            isDarkMode={isDarkMode}
         />
       )}
 
@@ -298,6 +314,7 @@ const App: React.FC = () => {
           onBack={() => handleNavigate('PATIENTS')}
           onUpdatePatient={handleUpdatePatient}
           cbgTemplates={cbgTemplates}
+          isDarkMode={isDarkMode}
         />
       )}
     </Layout>

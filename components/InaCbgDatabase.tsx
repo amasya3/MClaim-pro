@@ -7,13 +7,15 @@ interface InaCbgDatabaseProps {
   onAddTemplate: (template: INACBGTemplate) => void;
   onUpdateTemplate: (template: INACBGTemplate) => void;
   onDeleteTemplate: (id: string) => void;
+  isDarkMode?: boolean;
 }
 
 export const InaCbgDatabase: React.FC<InaCbgDatabaseProps> = ({ 
   templates, 
   onAddTemplate, 
   onUpdateTemplate, 
-  onDeleteTemplate 
+  onDeleteTemplate,
+  isDarkMode
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -254,7 +256,7 @@ export const InaCbgDatabase: React.FC<InaCbgDatabaseProps> = ({
     <div className="max-w-7xl mx-auto space-y-6">
        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-slate-800">Database INA-CBGs & Tarif</h2>
+          <h2 className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>Database INA-CBGs & Tarif</h2>
           <p className="text-slate-500">Master data kode, checklist berkas, dan standar tarif RS.</p>
         </div>
         <button 
@@ -272,21 +274,29 @@ export const InaCbgDatabase: React.FC<InaCbgDatabaseProps> = ({
             <input 
                 type="text" 
                 placeholder="Cari kode atau deskripsi..." 
-                className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition-all bg-white"
+                className={`w-full pl-10 pr-4 py-3 rounded-xl border focus:outline-none focus:ring-2 transition-all ${
+                  isDarkMode 
+                  ? 'bg-slate-900 border-slate-800 text-slate-200 focus:ring-teal-500/30 focus:border-teal-500' 
+                  : 'bg-white border-slate-200 focus:ring-teal-500/20 focus:border-teal-500'
+                }`}
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
             />
         </div>
         <button 
             onClick={handleImportClick}
-            className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 px-4 rounded-xl shadow-sm transition-colors flex items-center justify-center group"
+            className={`border px-4 rounded-xl shadow-sm transition-colors flex items-center justify-center group ${
+              isDarkMode ? 'bg-slate-900 border-slate-800 hover:bg-slate-800 text-slate-400' : 'bg-white border-slate-200 hover:bg-slate-50 text-slate-600'
+            }`}
             title="Import Excel (CSV)"
         >
             <span className="material-icons-round text-teal-600 group-hover:text-teal-700">upload_file</span>
         </button>
         <button 
             onClick={handleExportClick}
-            className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 px-4 rounded-xl shadow-sm transition-colors flex items-center justify-center group"
+            className={`border px-4 rounded-xl shadow-sm transition-colors flex items-center justify-center group ${
+              isDarkMode ? 'bg-slate-900 border-slate-800 hover:bg-slate-800 text-slate-400' : 'bg-white border-slate-200 hover:bg-slate-50 text-slate-600'
+            }`}
             title="Download Format Excel"
         >
             <span className="material-icons-round text-emerald-600 group-hover:text-emerald-700">file_download</span>
@@ -302,26 +312,31 @@ export const InaCbgDatabase: React.FC<InaCbgDatabaseProps> = ({
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredTemplates.map(template => (
-            <div key={template.id} className="bg-white rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow p-5 flex flex-col">
+            <div key={template.id} className={`rounded-xl border shadow-sm transition-all p-5 flex flex-col ${
+              isDarkMode ? 'bg-slate-900 border-slate-800 hover:shadow-teal-900/10' : 'bg-white border-slate-200 hover:shadow-md'
+            }`}>
                 <div className="flex justify-between items-start mb-3">
-                    <span className="bg-teal-50 text-teal-700 font-mono font-bold px-2 py-1 rounded text-sm border border-teal-100">
+                    <span className={`font-mono font-bold px-2 py-1 rounded text-sm border ${
+                      isDarkMode 
+                      ? 'bg-teal-900/30 text-teal-400 border-teal-800' 
+                      : 'bg-teal-50 text-teal-700 border-teal-100'
+                    }`}>
                         {template.code}
                     </span>
-                    {/* Severity display removed */}
                 </div>
-                <h3 className="font-semibold text-slate-800 mb-2 line-clamp-2 min-h-[3rem]">{template.description}</h3>
+                <h3 className={`font-semibold mb-2 line-clamp-2 min-h-[3rem] ${isDarkMode ? 'text-slate-200' : 'text-slate-800'}`}>{template.description}</h3>
                 
                 {/* Cost Section */}
-                <div className="mb-4 bg-slate-50 p-2 rounded-lg border border-slate-100">
+                <div className={`mb-4 p-2 rounded-lg border transition-colors ${isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-100'}`}>
                    <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-1">Tarif RS Kelas D</p>
-                   <p className="text-lg font-bold text-slate-700 font-mono">
+                   <p className={`text-lg font-bold font-mono ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>
                       {formatCurrency(template.tariff)}
                    </p>
                 </div>
 
                 <div className="flex-1 mb-4">
                     <p className="text-xs text-slate-500 font-medium mb-2 uppercase tracking-wide">Kelengkapan Wajib:</p>
-                    <ul className="text-sm text-slate-600 space-y-1">
+                    <ul className={`text-sm space-y-1 ${isDarkMode ? 'text-slate-400' : 'text-slate-600'}`}>
                         {template.requiredDocuments.slice(0, 3).map((doc, i) => (
                             <li key={i} className="flex items-center gap-2">
                                 <span className="w-1.5 h-1.5 bg-teal-400 rounded-full"></span>
@@ -329,21 +344,25 @@ export const InaCbgDatabase: React.FC<InaCbgDatabaseProps> = ({
                             </li>
                         ))}
                         {template.requiredDocuments.length > 3 && (
-                            <li className="text-xs text-slate-400 pl-3.5">+ {template.requiredDocuments.length - 3} berkas lainnya</li>
+                            <li className="text-xs text-slate-500 pl-3.5">+ {template.requiredDocuments.length - 3} berkas lainnya</li>
                         )}
                     </ul>
                 </div>
 
-                <div className="pt-4 border-t border-slate-100 flex justify-end gap-2">
+                <div className={`pt-4 border-t flex justify-end gap-2 ${isDarkMode ? 'border-slate-800' : 'border-slate-100'}`}>
                     <button 
                         onClick={() => handleOpenEdit(template)}
-                        className="text-xs font-medium text-slate-500 hover:text-teal-600 px-3 py-1.5 rounded hover:bg-teal-50 transition-colors"
+                        className={`text-xs font-medium px-3 py-1.5 rounded transition-colors ${
+                          isDarkMode ? 'text-slate-500 hover:text-teal-400 hover:bg-teal-900/20' : 'text-slate-500 hover:text-teal-600 hover:bg-teal-50'
+                        }`}
                     >
                         Edit Data
                     </button>
                     <button 
                         onClick={() => handleDelete(template)}
-                        className="text-xs font-medium text-slate-500 hover:text-rose-600 px-3 py-1.5 rounded hover:bg-rose-50 transition-colors"
+                        className={`text-xs font-medium px-3 py-1.5 rounded transition-colors ${
+                          isDarkMode ? 'text-slate-500 hover:text-rose-400 hover:bg-rose-900/20' : 'text-slate-500 hover:text-rose-600 hover:bg-rose-50'
+                        }`}
                     >
                         Hapus
                     </button>
@@ -351,7 +370,9 @@ export const InaCbgDatabase: React.FC<InaCbgDatabaseProps> = ({
             </div>
         ))}
         {filteredTemplates.length === 0 && (
-            <div className="col-span-full py-12 text-center text-slate-400 bg-white rounded-xl border border-dashed border-slate-300">
+            <div className={`col-span-full py-12 text-center text-slate-400 rounded-xl border border-dashed ${
+              isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-300'
+            }`}>
                 Tidak ada data kode ditemukan.
             </div>
         )}
@@ -360,19 +381,38 @@ export const InaCbgDatabase: React.FC<InaCbgDatabaseProps> = ({
       {/* Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
-            <div className="bg-white rounded-2xl shadow-xl max-w-lg w-full p-6 animate-fade-in max-h-[90vh] flex flex-col">
-                <h3 className="text-lg font-bold text-slate-800 mb-4 flex-shrink-0">{editingId ? 'Edit Template Kode' : 'Tambah Template Kode'}</h3>
+            <div className={`rounded-2xl shadow-xl max-w-lg w-full p-6 animate-fade-in max-h-[90vh] flex flex-col ${isDarkMode ? 'bg-slate-900 text-slate-100' : 'bg-white text-slate-800'}`}>
+                <h3 className={`text-lg font-bold mb-4 flex-shrink-0 ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>{editingId ? 'Edit Template Kode' : 'Tambah Template Kode'}</h3>
                 
                 <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto pr-2">
                     <div className="space-y-4">
                         <div className="flex gap-4">
                             <div className="w-1/3">
-                                <label className="block text-sm font-medium text-slate-700 mb-1">Kode</label>
-                                <input required type="text" value={code} onChange={e => setCode(e.target.value.toUpperCase())} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none font-mono" placeholder="J45.9" />
+                                <label className={`block text-sm font-medium mb-1 ${isDarkMode ? 'text-slate-400' : 'text-slate-700'}`}>Kode</label>
+                                <input 
+                                  required 
+                                  type="text" 
+                                  value={code} 
+                                  onChange={e => setCode(e.target.value.toUpperCase())} 
+                                  className={`w-full px-3 py-2 border rounded-lg focus:ring-2 outline-none font-mono transition-all ${
+                                    isDarkMode 
+                                    ? 'bg-slate-950 border-slate-800 text-slate-200 focus:ring-teal-500/30 focus:border-teal-500' 
+                                    : 'bg-white border-slate-300 focus:ring-teal-500/20 focus:border-teal-500 text-slate-800'
+                                  }`} 
+                                  placeholder="J45.9" 
+                                />
                             </div>
                             <div className="w-2/3">
-                                <label className="block text-sm font-medium text-slate-700 mb-1">Severity</label>
-                                <select value={severity} onChange={e => setSeverity(e.target.value as any)} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none">
+                                <label className={`block text-sm font-medium mb-1 ${isDarkMode ? 'text-slate-400' : 'text-slate-700'}`}>Severity</label>
+                                <select 
+                                  value={severity} 
+                                  onChange={e => setSeverity(e.target.value as any)} 
+                                  className={`w-full px-3 py-2 border rounded-lg focus:ring-2 outline-none transition-all ${
+                                    isDarkMode 
+                                    ? 'bg-slate-950 border-slate-800 text-slate-200 focus:ring-teal-500/30 focus:border-teal-500' 
+                                    : 'bg-white border-slate-300 focus:ring-teal-500/20 focus:border-teal-500 text-slate-800'
+                                  }`}
+                                >
                                     <option value="I">I (Ringan)</option>
                                     <option value="II">II (Sedang)</option>
                                     <option value="III">III (Berat)</option>
@@ -381,31 +421,48 @@ export const InaCbgDatabase: React.FC<InaCbgDatabaseProps> = ({
                         </div>
                         
                         <div>
-                            <label className="block text-sm font-medium text-slate-700 mb-1">Deskripsi</label>
-                            <textarea required rows={2} value={description} onChange={e => setDescription(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none resize-none" placeholder="Deskripsi lengkap penyakit..." />
+                            <label className={`block text-sm font-medium mb-1 ${isDarkMode ? 'text-slate-400' : 'text-slate-700'}`}>Deskripsi</label>
+                            <textarea 
+                              required 
+                              rows={2} 
+                              value={description} 
+                              onChange={e => setDescription(e.target.value)} 
+                              className={`w-full px-3 py-2 border rounded-lg focus:ring-2 outline-none resize-none transition-all ${
+                                isDarkMode 
+                                ? 'bg-slate-950 border-slate-800 text-slate-200 focus:ring-teal-500/30 focus:border-teal-500' 
+                                : 'bg-white border-slate-300 focus:ring-teal-500/20 focus:border-teal-500 text-slate-800'
+                              }`} 
+                              placeholder="Deskripsi lengkap penyakit..." 
+                            />
                         </div>
 
                         <div>
-                            <label className="block text-sm font-medium text-slate-700 mb-1">Standar Tarif (RS Kelas D)</label>
+                            <label className={`block text-sm font-medium mb-1 ${isDarkMode ? 'text-slate-400' : 'text-slate-700'}`}>Standar Tarif (RS Kelas D)</label>
                             <div className="relative">
                                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-sm">Rp</span>
                                 <input 
                                     type="number" 
                                     value={tariff} 
                                     onChange={e => setTariff(e.target.value)} 
-                                    className="w-full pl-10 pr-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none" 
+                                    className={`w-full pl-10 pr-3 py-2 border rounded-lg focus:ring-2 outline-none transition-all ${
+                                      isDarkMode 
+                                      ? 'bg-slate-950 border-slate-800 text-slate-200 focus:ring-teal-500/30 focus:border-teal-500' 
+                                      : 'bg-white border-slate-300 focus:ring-teal-500/20 focus:border-teal-500 text-slate-800'
+                                    }`} 
                                     placeholder="0" 
                                 />
                             </div>
                         </div>
 
                         <div>
-                            <label className="block text-sm font-medium text-slate-700 mb-2">Checklist Berkas Wajib</label>
+                            <label className={`block text-sm font-medium mb-2 ${isDarkMode ? 'text-slate-400' : 'text-slate-700'}`}>Checklist Berkas Wajib</label>
                             <div className="space-y-2 mb-3">
                                 {documents.map((doc, idx) => (
-                                    <div key={idx} className="flex items-center gap-2 bg-slate-50 p-2 rounded-lg border border-slate-200">
+                                    <div key={idx} className={`flex items-center gap-2 p-2 rounded-lg border transition-colors ${
+                                      isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'
+                                    }`}>
                                         <span className="material-icons-round text-teal-500 text-sm">check_circle</span>
-                                        <span className="text-sm text-slate-700 flex-1">{doc}</span>
+                                        <span className={`text-sm flex-1 ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>{doc}</span>
                                         <button type="button" onClick={() => handleRemoveDocument(idx)} className="text-slate-400 hover:text-rose-500 p-1">
                                             <span className="material-icons-round text-sm">close</span>
                                         </button>
@@ -419,9 +476,15 @@ export const InaCbgDatabase: React.FC<InaCbgDatabaseProps> = ({
                                     onChange={e => setNewDocInput(e.target.value)} 
                                     onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), handleAddDocument())}
                                     placeholder="Tambah dokumen baru..." 
-                                    className="flex-1 px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none" 
+                                    className={`flex-1 px-3 py-2 text-sm border rounded-lg focus:ring-2 outline-none transition-all ${
+                                      isDarkMode 
+                                      ? 'bg-slate-950 border-slate-800 text-slate-200 focus:ring-teal-500/30 focus:border-teal-500' 
+                                      : 'bg-white border-slate-300 focus:ring-teal-500/20 focus:border-teal-500 text-slate-800'
+                                    }`} 
                                 />
-                                <button type="button" onClick={handleAddDocument} className="bg-slate-100 hover:bg-slate-200 text-slate-600 px-3 py-2 rounded-lg transition-colors">
+                                <button type="button" onClick={handleAddDocument} className={`px-3 py-2 rounded-lg transition-colors ${
+                                  isDarkMode ? 'bg-slate-800 hover:bg-slate-700 text-slate-300' : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
+                                }`}>
                                     <span className="material-icons-round">add</span>
                                 </button>
                             </div>
@@ -429,8 +492,10 @@ export const InaCbgDatabase: React.FC<InaCbgDatabaseProps> = ({
                     </div>
                 </form>
 
-                <div className="flex gap-3 pt-6 mt-2 border-t border-slate-100 flex-shrink-0">
-                    <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 font-medium">Batal</button>
+                <div className={`flex gap-3 pt-6 mt-2 border-t flex-shrink-0 ${isDarkMode ? 'border-slate-800' : 'border-slate-100'}`}>
+                    <button type="button" onClick={() => setIsModalOpen(false)} className={`flex-1 px-4 py-2 border rounded-lg font-medium transition-colors ${
+                      isDarkMode ? 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700' : 'border-slate-300 text-slate-700 hover:bg-slate-50'
+                    }`}>Batal</button>
                     <button onClick={handleSubmit} className="flex-1 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 font-medium">Simpan</button>
                 </div>
             </div>

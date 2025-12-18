@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Patient, Diagnosis, DocumentItem, INACBGTemplate } from '../types';
 import { analyzeDiagnosisCode } from '../services/geminiService';
@@ -8,9 +7,18 @@ interface PatientDetailProps {
   onBack: () => void;
   onUpdatePatient: (updatedPatient: Patient) => void;
   cbgTemplates: INACBGTemplate[];
+  // Added isDarkMode prop to fix the assignment error in App.tsx
+  isDarkMode?: boolean;
 }
 
-export const PatientDetail: React.FC<PatientDetailProps> = ({ patient, onBack, onUpdatePatient, cbgTemplates }) => {
+// Added isDarkMode to component destructuring
+export const PatientDetail: React.FC<PatientDetailProps> = ({ 
+  patient, 
+  onBack, 
+  onUpdatePatient, 
+  cbgTemplates,
+  isDarkMode 
+}) => {
   // Form State
   const [inputCode, setInputCode] = useState('');
   const [inputSeverity, setInputSeverity] = useState<'I' | 'II' | 'III'>('I');
@@ -212,14 +220,17 @@ export const PatientDetail: React.FC<PatientDetailProps> = ({ patient, onBack, o
   };
 
   return (
-    <div className="max-w-7xl mx-auto h-full flex flex-col">
+    <div className={`max-w-7xl mx-auto h-full flex flex-col transition-colors ${isDarkMode ? 'text-slate-100' : 'text-slate-800'}`}>
       {/* Header */}
       <div className="flex items-center gap-4 mb-6 shrink-0">
-        <button onClick={onBack} className="p-2 rounded-full hover:bg-slate-200 text-slate-500 transition-colors">
+        <button 
+          onClick={onBack} 
+          className={`p-2 rounded-full transition-colors ${isDarkMode ? 'hover:bg-slate-800 text-slate-400' : 'hover:bg-slate-200 text-slate-500'}`}
+        >
             <span className="material-icons-round">arrow_back</span>
         </button>
         <div>
-            <h2 className="text-2xl font-bold text-slate-800">{patient.name}</h2>
+            <h2 className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>{patient.name}</h2>
             <div className="flex gap-4 text-sm text-slate-500">
                 <span>RM: {patient.mrn}</span>
                 <span className="w-1 h-1 bg-slate-400 rounded-full self-center"></span>
@@ -232,7 +243,7 @@ export const PatientDetail: React.FC<PatientDetailProps> = ({ patient, onBack, o
 
       <div className="flex flex-col flex-1 min-h-0">
         <div className="flex justify-between items-center mb-4 px-1">
-             <h3 className="text-lg font-bold text-slate-700">Daftar Diagnosis</h3>
+             <h3 className={`text-lg font-bold ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>Daftar Diagnosis</h3>
              <button 
                 onClick={handleOpenAdd}
                 className="bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-lg font-medium shadow-sm transition-colors flex items-center gap-2"
@@ -246,22 +257,22 @@ export const PatientDetail: React.FC<PatientDetailProps> = ({ patient, onBack, o
         <div className="flex-1 overflow-y-auto pb-4 space-y-6">
             {patient.diagnoses.length > 0 ? (
                 patient.diagnoses.map((diagnosis, index) => (
-                    <div key={diagnosis.id} className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                    <div key={diagnosis.id} className={`rounded-2xl shadow-sm border transition-colors overflow-hidden ${isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'}`}>
                         {/* Card Header */}
-                        <div className="p-6 border-b border-slate-100 bg-slate-50/50">
+                        <div className={`p-6 border-b transition-colors ${isDarkMode ? 'border-slate-800 bg-slate-950/30' : 'border-slate-100 bg-slate-50/50'}`}>
                             <div className="flex flex-col gap-4">
                                  <div className="flex justify-between items-start">
                                     <div className="flex flex-col gap-1">
                                         <span className={`text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded w-fit ${index === 0 ? 'bg-teal-100 text-teal-700' : 'bg-slate-200 text-slate-600'}`}>
                                             {index === 0 ? 'Diagnosis Utama' : 'Diagnosis Sekunder'}
                                         </span>
-                                        <h3 className="text-xl font-bold text-slate-800 leading-tight">{diagnosis.description}</h3>
+                                        <h3 className={`text-xl font-bold leading-tight ${isDarkMode ? 'text-slate-200' : 'text-slate-800'}`}>{diagnosis.description}</h3>
                                     </div>
                                     <div className="flex gap-2 shrink-0 ml-4 items-center">
                                         <button 
                                             type="button"
                                             onClick={() => handleEditClick(diagnosis)}
-                                            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
+                                            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${isDarkMode ? 'bg-blue-900/40 text-blue-400 hover:bg-blue-900/60' : 'bg-blue-50 text-blue-700 hover:bg-blue-100'}`}
                                             title="Edit Diagnosis"
                                         >
                                             <span className="material-icons-round text-sm">edit</span>
@@ -270,7 +281,7 @@ export const PatientDetail: React.FC<PatientDetailProps> = ({ patient, onBack, o
                                         <button 
                                             type="button"
                                             onClick={() => handleDeleteDiagnosis(diagnosis.id)}
-                                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                                            className={`p-1.5 rounded-lg transition-colors ${isDarkMode ? 'text-slate-500 hover:text-rose-400 hover:bg-rose-950/30' : 'text-slate-400 hover:text-rose-600 hover:bg-rose-50'}`}
                                             title="Hapus Diagnosis"
                                         >
                                             <span className="material-icons-round">close</span>
@@ -280,13 +291,13 @@ export const PatientDetail: React.FC<PatientDetailProps> = ({ patient, onBack, o
                                  
                                  <div className="flex justify-between items-end">
                                     <div className="flex gap-3">
-                                        <div className="bg-white border border-slate-200 px-3 py-1 rounded-lg shadow-sm">
+                                        <div className={`px-3 py-1 rounded-lg shadow-sm border ${isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-white border-slate-200'}`}>
                                             <span className="text-xs text-slate-500 block">Kode INA-CBG</span>
                                             <span className="font-mono text-lg font-bold text-teal-600">{diagnosis.code}</span>
                                         </div>
-                                        <div className="bg-white border border-slate-200 px-3 py-1 rounded-lg shadow-sm">
+                                        <div className={`px-3 py-1 rounded-lg shadow-sm border ${isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-white border-slate-200'}`}>
                                             <span className="text-xs text-slate-500 block">Severity</span>
-                                            <span className="font-bold text-slate-700">Level {diagnosis.severity}</span>
+                                            <span className={`font-bold ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>Level {diagnosis.severity}</span>
                                         </div>
                                     </div>
                                     
@@ -301,18 +312,18 @@ export const PatientDetail: React.FC<PatientDetailProps> = ({ patient, onBack, o
                         {/* Checklist Section */}
                         <div className="p-6">
                             <div className="flex items-center justify-between mb-4">
-                                <h4 className="text-sm font-bold text-slate-700 flex items-center gap-2">
+                                <h4 className={`text-sm font-bold flex items-center gap-2 ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>
                                     Kelengkapan Berkas
                                 </h4>
                                 <div className="text-xs text-slate-500 font-medium">
-                                    {Math.round((diagnosis.checklist.filter(c=>c.isChecked).length / diagnosis.checklist.length) * 100)}% Lengkap
+                                    {diagnosis.checklist.length > 0 ? Math.round((diagnosis.checklist.filter(c=>c.isChecked).length / diagnosis.checklist.length) * 100) : 0}% Lengkap
                                 </div>
                             </div>
                             
-                            <div className="w-full bg-slate-100 rounded-full h-1.5 mb-5">
+                            <div className={`w-full rounded-full h-1.5 mb-5 ${isDarkMode ? 'bg-slate-800' : 'bg-slate-100'}`}>
                                 <div 
                                     className="bg-teal-500 h-1.5 rounded-full transition-all duration-500 ease-out" 
-                                    style={{ width: `${(diagnosis.checklist.filter(c=>c.isChecked).length / diagnosis.checklist.length) * 100}%` }}
+                                    style={{ width: `${diagnosis.checklist.length > 0 ? (diagnosis.checklist.filter(c=>c.isChecked).length / diagnosis.checklist.length) * 100 : 0}%` }}
                                 ></div>
                             </div>
 
@@ -320,11 +331,11 @@ export const PatientDetail: React.FC<PatientDetailProps> = ({ patient, onBack, o
                                 {diagnosis.checklist.map((doc) => (
                                     <label key={doc.id} className={`flex items-center p-3 rounded-lg border transition-all cursor-pointer ${
                                         doc.isChecked 
-                                            ? 'bg-teal-50 border-teal-200' 
-                                            : 'bg-white border-slate-100 hover:border-slate-300'
+                                            ? (isDarkMode ? 'bg-teal-900/20 border-teal-800' : 'bg-teal-50 border-teal-200') 
+                                            : (isDarkMode ? 'bg-slate-950 border-slate-800 hover:border-slate-700' : 'bg-white border-slate-100 hover:border-slate-300')
                                     }`}>
                                         <div className={`w-5 h-5 rounded border flex items-center justify-center mr-3 transition-colors ${
-                                            doc.isChecked ? 'bg-teal-500 border-teal-500 text-white' : 'bg-white border-slate-300'
+                                            doc.isChecked ? 'bg-teal-500 border-teal-500 text-white' : (isDarkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-300')
                                         }`}>
                                             {doc.isChecked && <span className="material-icons-round text-xs">check</span>}
                                         </div>
@@ -335,11 +346,11 @@ export const PatientDetail: React.FC<PatientDetailProps> = ({ patient, onBack, o
                                             className="hidden" 
                                         />
                                         <div className="flex-1 flex justify-between items-center">
-                                            <span className={`text-sm font-medium ${doc.isChecked ? 'text-teal-900' : 'text-slate-700'}`}>
+                                            <span className={`text-sm font-medium ${doc.isChecked ? (isDarkMode ? 'text-teal-400' : 'text-teal-900') : (isDarkMode ? 'text-slate-400' : 'text-slate-700')}`}>
                                                 {doc.name}
                                             </span>
                                             {doc.required && (
-                                                <span className="text-[9px] font-bold uppercase tracking-wider text-rose-500 bg-rose-50 px-1.5 py-0.5 rounded ml-2">Wajib</span>
+                                                <span className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded ml-2 ${isDarkMode ? 'text-rose-400 bg-rose-950/40' : 'text-rose-500 bg-rose-50'}`}>Wajib</span>
                                             )}
                                         </div>
                                     </label>
@@ -349,11 +360,11 @@ export const PatientDetail: React.FC<PatientDetailProps> = ({ patient, onBack, o
                     </div>
                 ))
             ) : (
-                <div className="flex flex-col items-center justify-center h-full text-center p-8 bg-white rounded-2xl border border-dashed border-slate-300">
-                    <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mb-4">
+                <div className={`flex flex-col items-center justify-center h-full text-center p-8 rounded-2xl border border-dashed transition-colors ${isDarkMode ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-300'}`}>
+                    <div className={`w-16 h-16 rounded-full flex items-center justify-center mb-4 ${isDarkMode ? 'bg-slate-800' : 'bg-slate-50'}`}>
                         <span className="material-icons-round text-slate-300 text-3xl">post_add</span>
                     </div>
-                    <h3 className="text-lg font-bold text-slate-700">Belum Ada Diagnosis</h3>
+                    <h3 className={`text-lg font-bold ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>Belum Ada Diagnosis</h3>
                     <p className="text-slate-500 max-w-sm mt-2 text-sm">
                         Klik tombol "Tambah Diagnosis" di atas untuk memasukkan kode INA-CBG.
                     </p>
@@ -365,13 +376,13 @@ export const PatientDetail: React.FC<PatientDetailProps> = ({ patient, onBack, o
       {/* Modal Form */}
       {isModalOpen && (
          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-fade-in">
-            <div className="bg-white rounded-2xl shadow-xl max-w-lg w-full p-6 max-h-[90vh] overflow-y-auto">
+            <div className={`rounded-2xl shadow-xl max-w-lg w-full p-6 max-h-[90vh] overflow-y-auto transition-colors ${isDarkMode ? 'bg-slate-900 text-slate-100' : 'bg-white text-slate-800'}`}>
                  <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-2">
                         <span className={`material-icons-round ${editingDiagnosisId ? 'text-orange-600' : 'text-teal-600'}`}>
                             {editingDiagnosisId ? 'edit_note' : 'post_add'}
                         </span>
-                        <h3 className={`font-bold ${editingDiagnosisId ? 'text-orange-800' : 'text-slate-800'}`}>
+                        <h3 className={`font-bold ${editingDiagnosisId ? (isDarkMode ? 'text-orange-400' : 'text-orange-800') : (isDarkMode ? 'text-slate-100' : 'text-slate-800')}`}>
                             {editingDiagnosisId ? 'Edit Diagnosis' : 'Tambah Diagnosis'}
                         </h3>
                     </div>
@@ -386,14 +397,14 @@ export const PatientDetail: React.FC<PatientDetailProps> = ({ patient, onBack, o
                 <div className="space-y-4">
                     <div className="flex gap-3">
                         <div className="flex-1">
-                            <label className="block text-xs font-semibold text-slate-600 mb-1">Kode <span className="text-rose-500">*</span></label>
+                            <label className={`block text-xs font-semibold mb-1 ${isDarkMode ? 'text-slate-400' : 'text-slate-600'}`}>Kode <span className="text-rose-500">*</span></label>
                             <div className="relative">
                                 <input 
                                     type="text"
                                     value={inputCode}
                                     onChange={(e) => setInputCode(e.target.value)}
                                     placeholder="J45.9"
-                                    className="w-full pl-3 pr-8 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none font-mono uppercase"
+                                    className={`w-full pl-3 pr-8 py-2 border rounded-xl text-sm outline-none font-mono uppercase transition-all ${isDarkMode ? 'bg-slate-950 border-slate-800 focus:ring-teal-500/30 focus:border-teal-500' : 'border-slate-200 focus:ring-teal-500/20 focus:border-teal-500'}`}
                                     onKeyDown={(e) => e.key === 'Enter' && handleCheckCode()}
                                     autoFocus
                                 />
@@ -409,11 +420,11 @@ export const PatientDetail: React.FC<PatientDetailProps> = ({ patient, onBack, o
                             </div>
                         </div>
                         <div className="w-1/3">
-                            <label className="block text-xs font-semibold text-slate-600 mb-1">Severity</label>
+                            <label className={`block text-xs font-semibold mb-1 ${isDarkMode ? 'text-slate-400' : 'text-slate-600'}`}>Severity</label>
                             <select 
                                 value={inputSeverity} 
                                 onChange={(e) => setInputSeverity(e.target.value as any)}
-                                className="w-full px-2 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none bg-white"
+                                className={`w-full px-2 py-2 border rounded-xl text-sm outline-none transition-all ${isDarkMode ? 'bg-slate-950 border-slate-800 focus:ring-teal-500/30 focus:border-teal-500' : 'bg-white border-slate-200 focus:ring-teal-500/20 focus:border-teal-500'}`}
                             >
                                 <option value="I">I - Ringan</option>
                                 <option value="II">II - Sedang</option>
@@ -423,13 +434,13 @@ export const PatientDetail: React.FC<PatientDetailProps> = ({ patient, onBack, o
                     </div>
 
                     <div>
-                        <label className="block text-xs font-semibold text-slate-600 mb-1">Deskripsi Penyakit</label>
+                        <label className={`block text-xs font-semibold mb-1 ${isDarkMode ? 'text-slate-400' : 'text-slate-600'}`}>Deskripsi Penyakit</label>
                         <textarea 
                             value={inputDescription}
                             onChange={(e) => setInputDescription(e.target.value)}
                             rows={3}
                             placeholder="Deskripsi otomatis atau ketik manual..."
-                            className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none resize-none"
+                            className={`w-full px-3 py-2 border rounded-xl text-sm outline-none resize-none transition-all ${isDarkMode ? 'bg-slate-950 border-slate-800 focus:ring-teal-500/30 focus:border-teal-500' : 'border-slate-200 focus:ring-teal-500/20 focus:border-teal-500'}`}
                         />
                     </div>
                 </div>
@@ -439,7 +450,7 @@ export const PatientDetail: React.FC<PatientDetailProps> = ({ patient, onBack, o
                 <div className="flex gap-3 mt-6">
                     <button 
                         onClick={handleCloseModal} 
-                        className="flex-1 px-4 py-2 border border-slate-300 text-slate-700 rounded-xl hover:bg-slate-50 font-medium text-sm"
+                        className={`flex-1 px-4 py-2 border rounded-xl font-medium text-sm transition-colors ${isDarkMode ? 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700' : 'border-slate-300 text-slate-700 hover:bg-slate-50'}`}
                     >
                         Batal
                     </button>
@@ -462,8 +473,8 @@ export const PatientDetail: React.FC<PatientDetailProps> = ({ patient, onBack, o
                     </button>
                 </div>
 
-                <div className="bg-blue-50 p-3 rounded-xl border border-blue-100 mt-4">
-                    <p className="text-xs text-blue-800 leading-relaxed">
+                <div className={`p-3 rounded-xl border mt-4 ${isDarkMode ? 'bg-blue-900/20 border-blue-900/50' : 'bg-blue-50 border-blue-100'}`}>
+                    <p className={`text-xs leading-relaxed ${isDarkMode ? 'text-blue-300' : 'text-blue-800'}`}>
                         <span className="font-bold">Tips:</span> Apabila deskripsi dikosongkan, sistem otomatis mengambil deskripsi dari Database INA-CBGs saat disimpan.
                     </p>
                 </div>

@@ -9,7 +9,10 @@ interface PatientListProps {
   onAddPatient: (patient: Patient) => void;
   onUpdatePatientDetails: (patient: Patient) => void;
   onDeletePatient: (id: string) => void;
+  isDarkMode?: boolean;
 }
+
+type SortKey = 'name' | 'los' | 'room' | 'diagnosis' | 'tariff' | 'billing' | 'variance';
 
 export const PatientList: React.FC<PatientListProps> = ({ 
   patients, 
@@ -17,12 +20,14 @@ export const PatientList: React.FC<PatientListProps> = ({
   onSelectPatient, 
   onAddPatient,
   onUpdatePatientDetails,
-  onDeletePatient
+  onDeletePatient,
+  isDarkMode
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTab, setActiveTab] = useState<'active' | 'krs'>('active');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [sortConfig, setSortConfig] = useState<{ key: SortKey, direction: 'asc' | 'desc' } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   // File Menu State
@@ -63,6 +68,31 @@ export const PatientList: React.FC<PatientListProps> = ({
     };
   }, []);
 
+  const getEffectiveTariff = (patient: Patient): { amount: number, isEstimated: boolean } => {
+    if (patient.inaCbgAmount && patient.inaCbgAmount > 0) {
+        return { amount: patient.inaCbgAmount, isEstimated: false };
+    }
+    if (patient.diagnoses.length > 0) {
+        const code = patient.diagnoses[0].code;
+        const template = cbgTemplates.find(t => t.code === code);
+        if (template && template.tariff) {
+            return { amount: template.tariff, isEstimated: true };
+        }
+    }
+    return { amount: 0, isEstimated: false };
+  };
+
+  const calculateLOSNumeric = (p: Patient) => {
+    if (!p.admissionDate) return 0;
+    const start = new Date(p.admissionDate);
+    const end = p.status === PatientStatus.DISCHARGED && p.lastVisit ? new Date(p.lastVisit) : new Date();
+    start.setHours(0, 0, 0, 0);
+    end.setHours(0, 0, 0, 0);
+    const diffTime = end.getTime() - start.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return Math.max(1, diffDays + 1);
+  };
+
   // Filter logic based on Tab + Search
   const filteredPatients = patients.filter(p => {
     // 1. Tab Filter
@@ -78,6 +108,69 @@ export const PatientList: React.FC<PatientListProps> = ({
         (p.roomNumber && p.roomNumber.toLowerCase().includes(searchTerm.toLowerCase()))
     );
   });
+
+  // Sorting Logic
+  const sortedPatients = [...filteredPatients].sort((a, b) => {
+    if (!sortConfig) return 0;
+    const { key, direction } = sortConfig;
+    
+    let valA: any = '';
+    let valB: any = '';
+
+    switch (key) {
+      case 'name':
+        valA = a.name.toLowerCase();
+        valB = b.name.toLowerCase();
+        break;
+      case 'los':
+        valA = calculateLOSNumeric(a);
+        valB = calculateLOSNumeric(b);
+        break;
+      case 'room':
+        valA = (a.roomNumber || '').toLowerCase();
+        valB = (b.roomNumber || '').toLowerCase();
+        break;
+      case 'diagnosis':
+        valA = (a.diagnoses[0]?.code || '').toLowerCase();
+        valB = (b.diagnoses[0]?.code || '').toLowerCase();
+        break;
+      case 'tariff':
+        valA = getEffectiveTariff(a).amount;
+        valB = getEffectiveTariff(b).amount;
+        break;
+      case 'billing':
+        valA = a.billingAmount || 0;
+        valB = b.billingAmount || 0;
+        break;
+      case 'variance':
+        valA = getEffectiveTariff(a).amount - (a.billingAmount || 0);
+        valB = getEffectiveTariff(b).amount - (b.billingAmount || 0);
+        break;
+    }
+
+    if (valA < valB) return direction === 'asc' ? -1 : 1;
+    if (valA > valB) return direction === 'asc' ? 1 : -1;
+    return 0;
+  });
+
+  const requestSort = (key: SortKey) => {
+    let direction: 'asc' | 'desc' = 'asc';
+    if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
+      direction = 'desc';
+    }
+    setSortConfig({ key, direction });
+  };
+
+  const renderSortIndicator = (key: SortKey) => {
+    if (!sortConfig || sortConfig.key !== key) {
+      return <span className="material-icons-round text-xs opacity-20 ml-1">sort</span>;
+    }
+    return (
+      <span className="material-icons-round text-xs ml-1 text-teal-500">
+        {sortConfig.direction === 'asc' ? 'arrow_upward' : 'arrow_downward'}
+      </span>
+    );
+  };
 
   // Bulk Selection Handlers
   const handleToggleSelect = (id: string) => {
@@ -293,20 +386,6 @@ export const PatientList: React.FC<PatientListProps> = ({
   const formatCurrency = (amount?: number) => {
     if (amount === undefined || amount === null) return '-';
     return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(amount);
-  };
-
-  const getEffectiveTariff = (patient: Patient): { amount: number, isEstimated: boolean } => {
-    if (patient.inaCbgAmount && patient.inaCbgAmount > 0) {
-        return { amount: patient.inaCbgAmount, isEstimated: false };
-    }
-    if (patient.diagnoses.length > 0) {
-        const code = patient.diagnoses[0].code;
-        const template = cbgTemplates.find(t => t.code === code);
-        if (template && template.tariff) {
-            return { amount: template.tariff, isEstimated: true };
-        }
-    }
-    return { amount: 0, isEstimated: false };
   };
 
   const handleImportClick = () => {
@@ -579,7 +658,7 @@ export const PatientList: React.FC<PatientListProps> = ({
     <div className="max-w-7xl mx-auto space-y-6">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-slate-800">Manajemen Pasien</h2>
+          <h2 className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>Manajemen Pasien</h2>
           <p className="text-slate-500">Kelola data pasien, edit informasi, dan pantau status INA-CBGs.</p>
         </div>
         <button 
@@ -592,12 +671,12 @@ export const PatientList: React.FC<PatientListProps> = ({
       </div>
 
       <div className="flex flex-col md:flex-row gap-4 items-center print:hidden">
-        <div className="bg-white p-1 rounded-xl border border-slate-200 flex shadow-sm">
+        <div className={`p-1 rounded-xl border flex shadow-sm transition-colors ${isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'}`}>
             <button 
                 onClick={() => setActiveTab('active')}
                 className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
                     activeTab === 'active' 
-                    ? 'bg-teal-50 text-teal-700 shadow-sm' 
+                    ? (isDarkMode ? 'bg-teal-900/40 text-teal-400' : 'bg-teal-50 text-teal-700 shadow-sm') 
                     : 'text-slate-500 hover:text-slate-700'
                 }`}
             >
@@ -607,7 +686,7 @@ export const PatientList: React.FC<PatientListProps> = ({
                 onClick={() => setActiveTab('krs')}
                 className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
                     activeTab === 'krs' 
-                    ? 'bg-teal-50 text-teal-700 shadow-sm' 
+                    ? (isDarkMode ? 'bg-teal-900/40 text-teal-400' : 'bg-teal-50 text-teal-700 shadow-sm') 
                     : 'text-slate-500 hover:text-slate-700'
                 }`}
             >
@@ -621,7 +700,11 @@ export const PatientList: React.FC<PatientListProps> = ({
                 <input 
                     type="text" 
                     placeholder="Cari nama, No. RM, BPJS, atau Kamar." 
-                    className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition-all bg-white"
+                    className={`w-full pl-10 pr-4 py-2.5 rounded-xl border focus:outline-none focus:ring-2 transition-all ${
+                      isDarkMode 
+                      ? 'bg-slate-900 border-slate-800 text-slate-200 focus:ring-teal-500/30 focus:border-teal-500' 
+                      : 'bg-white border-slate-200 focus:ring-teal-500/20 focus:border-teal-500'
+                    }`}
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                 />
@@ -630,32 +713,42 @@ export const PatientList: React.FC<PatientListProps> = ({
             <div className="relative" ref={fileMenuRef}>
                 <button 
                     onClick={() => setIsFileMenuOpen(!isFileMenuOpen)}
-                    className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 px-3 rounded-xl shadow-sm transition-colors flex items-center justify-center group h-[42px]"
+                    className={`border px-3 rounded-xl shadow-sm transition-colors flex items-center justify-center group h-[42px] ${
+                      isDarkMode ? 'bg-slate-900 border-slate-800 hover:bg-slate-800 text-slate-400' : 'bg-white border-slate-200 hover:bg-slate-50 text-slate-600'
+                    }`}
                     title="Menu File (Import/Export)"
                 >
                     <span className="material-icons-round text-teal-600 group-hover:text-teal-700">upload_file</span>
                 </button>
                 
                 {isFileMenuOpen && (
-                    <div className="absolute right-0 top-full mt-2 w-56 bg-white rounded-xl shadow-xl border border-slate-100 py-2 z-20 animate-fade-in">
+                    <div className={`absolute right-0 top-full mt-2 w-56 rounded-xl shadow-xl border py-2 z-20 animate-fade-in ${
+                      isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100'
+                    }`}>
                         <button 
                             onClick={handleImportClick}
-                            className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-3 transition-colors"
+                            className={`w-full text-left px-4 py-2 text-sm flex items-center gap-3 transition-colors ${
+                              isDarkMode ? 'text-slate-300 hover:bg-slate-800' : 'text-slate-700 hover:bg-slate-50'
+                            }`}
                         >
                             <span className="material-icons-round text-teal-600 text-lg">upload_file</span>
                             Import Excel (CSV)
                         </button>
                         <button 
                             onClick={handleDownloadTemplate}
-                            className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-3 transition-colors"
+                            className={`w-full text-left px-4 py-2 text-sm flex items-center gap-3 transition-colors ${
+                              isDarkMode ? 'text-slate-300 hover:bg-slate-800' : 'text-slate-700 hover:bg-slate-50'
+                            }`}
                         >
                             <span className="material-icons-round text-blue-600 text-lg">description</span>
                             Download Template CSV
                         </button>
-                        <div className="my-1 border-t border-slate-100"></div>
+                        <div className={`my-1 border-t ${isDarkMode ? 'border-slate-800' : 'border-slate-100'}`}></div>
                         <button 
                             onClick={handleExportAll}
-                            className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-3 transition-colors"
+                            className={`w-full text-left px-4 py-2 text-sm flex items-center gap-3 transition-colors ${
+                              isDarkMode ? 'text-slate-300 hover:bg-slate-800' : 'text-slate-700 hover:bg-slate-50'
+                            }`}
                         >
                             <span className="material-icons-round text-indigo-600 text-lg">download</span>
                             Export Semua Data
@@ -666,10 +759,12 @@ export const PatientList: React.FC<PatientListProps> = ({
 
             <button 
                 onClick={() => window.print()}
-                className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 px-3 rounded-xl shadow-sm transition-colors flex items-center justify-center group h-[42px]"
+                className={`border px-3 rounded-xl shadow-sm transition-colors flex items-center justify-center group h-[42px] ${
+                   isDarkMode ? 'bg-slate-900 border-slate-800 hover:bg-slate-800 text-slate-400' : 'bg-white border-slate-200 hover:bg-slate-50 text-slate-600'
+                }`}
                 title="Print Data"
             >
-                <span className="material-icons-round text-slate-600 group-hover:text-slate-800">print</span>
+                <span className={`material-icons-round group-hover:text-slate-800 ${isDarkMode ? 'text-slate-500' : 'text-slate-600'}`}>print</span>
             </button>
             <input 
                 type="file" 
@@ -682,22 +777,28 @@ export const PatientList: React.FC<PatientListProps> = ({
       </div>
 
       {selectedIds.size > 0 && (
-        <div className="bg-teal-50 border border-teal-200 rounded-xl p-3 flex items-center justify-between animate-fade-in print:hidden">
+        <div className={`border rounded-xl p-3 flex items-center justify-between animate-fade-in print:hidden ${
+          isDarkMode ? 'bg-teal-950/20 border-teal-900' : 'bg-teal-50 border-teal-200'
+        }`}>
             <div className="flex items-center gap-3">
                 <span className="bg-teal-600 text-white text-xs font-bold px-2 py-1 rounded-lg">{selectedIds.size} Dipilih</span>
-                <span className="text-sm text-teal-800 font-medium">Pasien terpilih dari daftar saat ini</span>
+                <span className={`text-sm font-medium ${isDarkMode ? 'text-teal-400' : 'text-teal-800'}`}>Pasien terpilih dari daftar saat ini</span>
             </div>
             <div className="flex items-center gap-2">
                 <button 
                     onClick={handleBulkExport}
-                    className="flex items-center gap-1 bg-white border border-teal-200 text-teal-700 hover:bg-teal-100 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors"
+                    className={`flex items-center gap-1 border px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                      isDarkMode ? 'bg-slate-900 border-teal-900 text-teal-400 hover:bg-teal-900/40' : 'bg-white border-teal-200 text-teal-700 hover:bg-teal-100'
+                    }`}
                 >
                     <span className="material-icons-round text-sm">download</span>
                     Export
                 </button>
                 <button 
                     onClick={handleBulkDelete}
-                    className="flex items-center gap-1 bg-white border border-rose-200 text-rose-600 hover:bg-rose-50 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors"
+                    className={`flex items-center gap-1 border px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                      isDarkMode ? 'bg-slate-900 border-rose-900 text-rose-400 hover:bg-rose-950/40' : 'bg-white border-rose-200 text-rose-600 hover:bg-rose-50'
+                    }`}
                 >
                     <span className="material-icons-round text-sm">delete</span>
                     Hapus
@@ -706,11 +807,13 @@ export const PatientList: React.FC<PatientListProps> = ({
         </div>
       )}
 
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+      <div className={`rounded-2xl shadow-sm border overflow-hidden transition-colors ${isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'}`}>
         <div className="overflow-x-auto print:overflow-visible">
             <table className="w-full text-left border-collapse">
                 <thead>
-                    <tr className="bg-slate-50 border-b border-slate-200 text-xs uppercase text-slate-500 font-semibold tracking-wider group">
+                    <tr className={`border-b text-[10px] uppercase font-semibold tracking-wider transition-colors ${
+                      isDarkMode ? 'bg-slate-950 border-slate-800 text-slate-500' : 'bg-slate-50 border-slate-200 text-slate-500'
+                    }`}>
                         <th className="px-4 py-4 w-10 print:hidden">
                              <input 
                                 type="checkbox" 
@@ -719,19 +822,47 @@ export const PatientList: React.FC<PatientListProps> = ({
                                 onChange={handleSelectAll}
                              />
                         </th>
-                        <th className="px-6 py-4">Pasien</th>
-                        <th className="px-4 py-4 w-32">Lama Rawat</th>
-                        <th className="px-4 py-4">Kamar</th>
-                        <th className="px-4 py-4">Diagnosis</th>
-                        <th className="px-4 py-4 text-right">Tarif INA-CBG</th>
-                        <th className="px-4 py-4 text-right">Tagihan RS</th>
-                        <th className="px-4 py-4 text-right">Selisih</th>
+                        <th className="px-6 py-4 cursor-pointer hover:bg-teal-500/5 transition-colors" onClick={() => requestSort('name')}>
+                          <div className="flex items-center">
+                            Pasien {renderSortIndicator('name')}
+                          </div>
+                        </th>
+                        <th className="px-4 py-4 w-32 cursor-pointer hover:bg-teal-500/5 transition-colors" onClick={() => requestSort('los')}>
+                          <div className="flex items-center">
+                            Lama Rawat {renderSortIndicator('los')}
+                          </div>
+                        </th>
+                        <th className="px-4 py-4 cursor-pointer hover:bg-teal-500/5 transition-colors" onClick={() => requestSort('room')}>
+                          <div className="flex items-center">
+                            Kamar {renderSortIndicator('room')}
+                          </div>
+                        </th>
+                        <th className="px-4 py-4 cursor-pointer hover:bg-teal-500/5 transition-colors" onClick={() => requestSort('diagnosis')}>
+                          <div className="flex items-center">
+                            Diagnosis {renderSortIndicator('diagnosis')}
+                          </div>
+                        </th>
+                        <th className="px-4 py-4 text-right cursor-pointer hover:bg-teal-500/5 transition-colors" onClick={() => requestSort('tariff')}>
+                          <div className="flex items-center justify-end">
+                            Tarif INA-CBG {renderSortIndicator('tariff')}
+                          </div>
+                        </th>
+                        <th className="px-4 py-4 text-right cursor-pointer hover:bg-teal-500/5 transition-colors" onClick={() => requestSort('billing')}>
+                          <div className="flex items-center justify-end">
+                            Tagihan RS {renderSortIndicator('billing')}
+                          </div>
+                        </th>
+                        <th className="px-4 py-4 text-right cursor-pointer hover:bg-teal-500/5 transition-colors" onClick={() => requestSort('variance')}>
+                          <div className="flex items-center justify-end">
+                            Selisih {renderSortIndicator('variance')}
+                          </div>
+                        </th>
                         <th className="px-4 py-4 w-32">Note Usulan</th>
                         <th className="px-6 py-4 text-right print:hidden">Aksi</th>
                     </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100" style={{ fontFamily: 'Arial, sans-serif' }}>
-                    {filteredPatients.map((patient) => {
+                <tbody className={`divide-y transition-colors ${isDarkMode ? 'divide-slate-800' : 'divide-slate-100'}`} style={{ fontFamily: 'Arial, sans-serif' }}>
+                    {sortedPatients.map((patient) => {
                         const bill = patient.billingAmount || 0;
                         const effectiveTariff = getEffectiveTariff(patient);
                         const cbg = effectiveTariff.amount;
@@ -739,11 +870,15 @@ export const PatientList: React.FC<PatientListProps> = ({
                         
                         const hasDiagnosis = patient.diagnoses.length > 0;
                         const activeDiagnosis = patient.diagnoses[0];
-                        const lengthOfStay = calculateLengthOfStay(patient.admissionDate, patient.lastVisit, patient.status === PatientStatus.DISCHARGED);
+                        const lengthOfStayStr = calculateLengthOfStay(patient.admissionDate, patient.lastVisit, patient.status === PatientStatus.DISCHARGED);
                         const isSelected = selectedIds.has(patient.id);
 
                         return (
-                            <tr key={patient.id} className={`transition-colors group ${isSelected ? 'bg-teal-50/30' : 'hover:bg-slate-50'}`}>
+                            <tr key={patient.id} className={`transition-colors group ${
+                              isSelected 
+                              ? (isDarkMode ? 'bg-teal-900/10' : 'bg-teal-50/30') 
+                              : (isDarkMode ? 'hover:bg-slate-800/50' : 'hover:bg-slate-50')
+                            }`}>
                                 <td className="px-4 py-4 print:hidden">
                                      <input 
                                         type="checkbox" 
@@ -755,39 +890,49 @@ export const PatientList: React.FC<PatientListProps> = ({
                                 </td>
                                 <td className="px-6 py-4 cursor-pointer" onClick={() => onSelectPatient(patient)}>
                                     <div className="flex items-center gap-3">
-                                        <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold shadow-sm ${
-                                            patient.gender === Gender.MALE ? 'bg-blue-100 text-blue-600' : 'bg-pink-100 text-pink-600'
+                                        <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold shadow-sm shrink-0 ${
+                                            patient.gender === Gender.MALE 
+                                            ? (isDarkMode ? 'bg-blue-900/40 text-blue-400' : 'bg-blue-100 text-blue-600') 
+                                            : (isDarkMode ? 'bg-pink-900/40 text-pink-400' : 'bg-pink-100 text-pink-600')
                                         }`}>
                                             {patient.name.charAt(0)}
                                         </div>
-                                        <div>
-                                            <p className="font-semibold text-slate-800">{patient.name}</p>
+                                        <div className="min-w-0">
+                                            <p className={`font-semibold truncate ${isDarkMode ? 'text-slate-200' : 'text-slate-800'}`}>{patient.name}</p>
                                         </div>
                                     </div>
                                 </td>
                                 <td className="px-4 py-4">
-                                     <span className="text-sm font-bold text-teal-700 block">{lengthOfStay}</span>
+                                     <span className={`text-sm font-bold block ${isDarkMode ? 'text-teal-400' : 'text-teal-700'}`}>{lengthOfStayStr}</span>
                                 </td>
                                 <td className="px-4 py-4">
                                     <div className="flex flex-col">
-                                        <span className="text-sm text-slate-600 font-medium">{patient.roomNumber || '-'}</span>
+                                        <span className={`text-sm font-medium ${isDarkMode ? 'text-slate-400' : 'text-slate-600'}`}>{patient.roomNumber || '-'}</span>
                                     </div>
                                 </td>
                                 <td className="px-4 py-4">
                                     {hasDiagnosis ? (
-                                        <span className="bg-teal-50 text-teal-700 font-mono text-sm px-2 py-1 rounded border border-teal-100 font-bold">
+                                        <span className={`font-mono text-sm px-2 py-1 rounded border font-bold ${
+                                          isDarkMode 
+                                          ? 'bg-teal-900/30 text-teal-400 border-teal-800' 
+                                          : 'bg-teal-50 text-teal-700 border-teal-100'
+                                        }`}>
                                             {activeDiagnosis.code}
                                         </span>
                                     ) : <span className="text-xs text-slate-400 italic">Belum ada</span>}
                                 </td>
                                 <td className="px-4 py-4 text-right">
                                     <div className="flex flex-col items-end">
-                                        <span className={`font-mono text-sm font-medium ${effectiveTariff.isEstimated ? 'text-slate-600' : 'text-teal-700'}`}>
+                                        <span className={`font-mono text-sm font-medium ${
+                                          effectiveTariff.isEstimated 
+                                          ? 'text-slate-500' 
+                                          : (isDarkMode ? 'text-teal-400' : 'text-teal-700')
+                                        }`}>
                                             {formatCurrency(cbg)}
                                         </span>
                                     </div>
                                 </td>
-                                <td className="px-4 py-4 text-right font-mono text-sm text-slate-700">
+                                <td className={`px-4 py-4 text-right font-mono text-sm ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>
                                     {formatCurrency(bill)}
                                 </td>
                                 <td className={`px-4 py-4 text-right font-mono text-sm font-bold ${variance >= 0 ? 'text-green-600' : 'text-rose-600'}`}>
@@ -796,23 +941,25 @@ export const PatientList: React.FC<PatientListProps> = ({
                                 <td className="px-4 py-4">
                                     <button 
                                         onClick={(e) => handleOpenNote(patient, e)}
-                                        className="w-full text-left px-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg hover:bg-slate-100 hover:border-slate-300 transition-colors text-slate-600 truncate max-w-[120px]"
+                                        className={`w-full text-left px-3 py-1.5 text-xs rounded-lg border transition-colors truncate max-w-[120px] ${
+                                          isDarkMode ? 'bg-slate-950 border-slate-800 hover:bg-slate-800 text-slate-400' : 'bg-slate-50 border-slate-200 hover:bg-slate-100 hover:border-slate-300 text-slate-600'
+                                        }`}
                                     >
-                                        {patient.verifierNote ? patient.verifierNote : <span className="text-slate-400 italic">Isi note...</span>}
+                                        {patient.verifierNote ? patient.verifierNote : <span className="text-slate-500 italic">Isi note...</span>}
                                     </button>
                                 </td>
                                 <td className="px-6 py-4 text-right print:hidden">
                                     <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                                         <button 
                                             onClick={(e) => handleOpenEdit(patient, e)}
-                                            className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                            className={`p-1.5 rounded-lg transition-colors ${isDarkMode ? 'text-slate-500 hover:text-blue-400 hover:bg-blue-900/30' : 'text-slate-400 hover:text-blue-600 hover:bg-blue-50'}`}
                                             title="Edit"
                                         >
                                             <span className="material-icons-round text-sm">edit</span>
                                         </button>
                                         <button 
                                             onClick={(e) => handleDelete(patient, e)}
-                                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                                            className={`p-1.5 rounded-lg transition-colors ${isDarkMode ? 'text-slate-500 hover:text-rose-400 hover:bg-rose-900/30' : 'text-slate-400 hover:text-rose-600 hover:bg-rose-50'}`}
                                             title="Hapus"
                                         >
                                             <span className="material-icons-round text-sm">delete</span>
@@ -822,7 +969,7 @@ export const PatientList: React.FC<PatientListProps> = ({
                             </tr>
                         );
                     })}
-                    {filteredPatients.length === 0 && (
+                    {sortedPatients.length === 0 && (
                         <tr>
                             <td colSpan={10} className="px-6 py-12 text-center text-slate-400">
                                 Data tidak ditemukan.
@@ -837,40 +984,52 @@ export const PatientList: React.FC<PatientListProps> = ({
       {/* Add/Edit Patient Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm print:hidden">
-            <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 animate-fade-in max-h-[90vh] overflow-y-auto">
-                <h3 className="text-lg font-bold text-slate-800 mb-4">{editingId ? 'Edit Pasien' : 'Tambah Pasien Baru'}</h3>
+            <div className={`rounded-2xl shadow-xl max-w-md w-full p-6 animate-fade-in max-h-[90vh] overflow-y-auto ${isDarkMode ? 'bg-slate-900 text-slate-100' : 'bg-white text-slate-800'}`}>
+                <h3 className={`text-lg font-bold mb-4 ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>{editingId ? 'Edit Pasien' : 'Tambah Pasien Baru'}</h3>
                 
                 <form onSubmit={handleSubmit} className="space-y-4">
                     <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">Nama Pasien</label>
+                        <label className={`block text-sm font-medium mb-1 ${isDarkMode ? 'text-slate-400' : 'text-slate-700'}`}>Nama Pasien</label>
                         <input 
                             type="text" 
                             required 
                             value={name}
                             onChange={(e) => setName(e.target.value)}
-                            className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none" 
+                            className={`w-full px-3 py-2 border rounded-lg focus:ring-2 outline-none transition-all ${
+                              isDarkMode 
+                              ? 'bg-slate-950 border-slate-800 text-slate-200 focus:ring-teal-500/30 focus:border-teal-500' 
+                              : 'bg-white border-slate-300 focus:ring-teal-500/20 focus:border-teal-500 text-slate-800'
+                            }`}
                             placeholder="Nama Lengkap"
                         />
                     </div>
                     
                     <div className="grid grid-cols-2 gap-4">
                         <div>
-                            <label className="block text-sm font-medium text-slate-700 mb-1">Jenis Kelamin</label>
+                            <label className={`block text-sm font-medium mb-1 ${isDarkMode ? 'text-slate-400' : 'text-slate-700'}`}>Jenis Kelamin</label>
                             <select 
                                 value={gender}
                                 onChange={(e) => setGender(e.target.value as Gender)}
-                                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none bg-white"
+                                className={`w-full px-3 py-2 border rounded-lg focus:ring-2 outline-none transition-all ${
+                                  isDarkMode 
+                                  ? 'bg-slate-950 border-slate-800 text-slate-200 focus:ring-teal-500/30 focus:border-teal-500' 
+                                  : 'bg-white border-slate-300 focus:ring-teal-500/20 focus:border-teal-500 text-slate-800'
+                                }`}
                             >
                                 <option value={Gender.MALE}>Laki-laki</option>
                                 <option value={Gender.FEMALE}>Perempuan</option>
                             </select>
                         </div>
                         <div>
-                            <label className="block text-sm font-medium text-slate-700 mb-1">Status</label>
+                            <label className={`block text-sm font-medium mb-1 ${isDarkMode ? 'text-slate-400' : 'text-slate-700'}`}>Status</label>
                             <select 
                                 value={status}
                                 onChange={(e) => setStatus(e.target.value as PatientStatus)}
-                                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none bg-white"
+                                className={`w-full px-3 py-2 border rounded-lg focus:ring-2 outline-none transition-all ${
+                                  isDarkMode 
+                                  ? 'bg-slate-950 border-slate-800 text-slate-200 focus:ring-teal-500/30 focus:border-teal-500' 
+                                  : 'bg-white border-slate-300 focus:ring-teal-500/20 focus:border-teal-500 text-slate-800'
+                                }`}
                             >
                                 <option value={PatientStatus.ADMITTED}>Rawat Inap</option>
                                 <option value={PatientStatus.OUTPATIENT}>Rawat Jalan</option>
@@ -881,52 +1040,68 @@ export const PatientList: React.FC<PatientListProps> = ({
 
                     <div className="grid grid-cols-2 gap-4">
                         <div>
-                            <label className="block text-sm font-medium text-slate-700 mb-1">Tanggal Masuk</label>
+                            <label className={`block text-sm font-medium mb-1 ${isDarkMode ? 'text-slate-400' : 'text-slate-700'}`}>Tanggal Masuk</label>
                             <input 
                                 type="date" 
                                 required 
                                 value={admissionDate}
                                 onChange={(e) => setAdmissionDate(e.target.value)}
-                                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none" 
+                                className={`w-full px-3 py-2 border rounded-lg focus:ring-2 outline-none transition-all ${
+                                  isDarkMode 
+                                  ? 'bg-slate-950 border-slate-800 text-slate-200 focus:ring-teal-500/30 focus:border-teal-500' 
+                                  : 'bg-white border-slate-300 focus:ring-teal-500/20 focus:border-teal-500 text-slate-800'
+                                }`}
                             />
                         </div>
                         <div>
-                            <label className="block text-sm font-medium text-slate-700 mb-1">Nomor Kamar/Poli</label>
+                            <label className={`block text-sm font-medium mb-1 ${isDarkMode ? 'text-slate-400' : 'text-slate-700'}`}>Nomor Kamar/Poli</label>
                             <input 
                                 type="text" 
                                 value={roomNumber}
                                 onChange={(e) => setRoomNumber(e.target.value)}
-                                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none" 
+                                className={`w-full px-3 py-2 border rounded-lg focus:ring-2 outline-none transition-all ${
+                                  isDarkMode 
+                                  ? 'bg-slate-950 border-slate-800 text-slate-200 focus:ring-teal-500/30 focus:border-teal-500' 
+                                  : 'bg-white border-slate-300 focus:ring-teal-500/20 focus:border-teal-500 text-slate-800'
+                                }`}
                                 placeholder="Cth: Anggrek 1"
                             />
                         </div>
                     </div>
 
-                    <div className="border-t border-slate-100 pt-4 mt-2">
-                        <h4 className="text-sm font-bold text-slate-800 mb-3">Estimasi Biaya</h4>
+                    <div className={`border-t pt-4 mt-2 ${isDarkMode ? 'border-slate-800' : 'border-slate-100'}`}>
+                        <h4 className={`text-sm font-bold mb-3 ${isDarkMode ? 'text-slate-200' : 'text-slate-800'}`}>Estimasi Biaya</h4>
                         <div className="space-y-3">
                             <div>
-                                <label className="block text-xs font-medium text-slate-600 mb-1">Tagihan RS (Real Cost)</label>
+                                <label className={`block text-xs font-medium mb-1 ${isDarkMode ? 'text-slate-500' : 'text-slate-600'}`}>Tagihan RS (Real Cost)</label>
                                 <div className="relative">
                                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-xs">Rp</span>
                                     <input 
                                         type="number" 
                                         value={billingAmount}
                                         onChange={(e) => setBillingAmount(e.target.value)}
-                                        className="w-full pl-8 pr-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none" 
+                                        className={`w-full pl-8 pr-3 py-2 border rounded-lg text-sm focus:ring-2 outline-none transition-all ${
+                                          isDarkMode 
+                                          ? 'bg-slate-950 border-slate-800 text-slate-200 focus:ring-teal-500/30 focus:border-teal-500' 
+                                          : 'bg-white border-slate-300 focus:ring-teal-500/20 focus:border-teal-500 text-slate-800'
+                                        }`}
                                         placeholder="0"
                                     />
                                 </div>
                             </div>
                             <div>
-                                <label className="block text-xs font-medium text-slate-600 mb-1">Tarif INA-CBG (Klaim)</label>
+                                <label className={`block text-xs font-medium mb-1 ${isDarkMode ? 'text-slate-500' : 'text-slate-600'}`}>Tarif INA-CBG (Klaim)</label>
                                 <div className="relative">
                                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-xs">Rp</span>
                                     <input 
                                         type="number" 
                                         value={inaCbgAmount}
                                         onChange={(e) => setInaCbgAmount(e.target.value)}
-                                        className="w-full pl-8 pr-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none" 
+                                        className={`w-full pl-8 pr-3 py-2 border rounded-lg text-sm focus:ring-2 outline-none transition-all ${
+                                          isDarkMode 
+                                          ? 'bg-slate-950 border-slate-800 text-slate-200 focus:ring-teal-500/30 focus:border-teal-500' 
+                                          : 'bg-white border-slate-300 focus:ring-teal-500/20 focus:border-teal-500 text-slate-800'
+                                        }`}
                                         placeholder="0"
                                     />
                                 </div>
@@ -934,8 +1109,10 @@ export const PatientList: React.FC<PatientListProps> = ({
                         </div>
                     </div>
 
-                    <div className="flex gap-3 pt-4 border-t border-slate-100 mt-2">
-                        <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 font-medium">Batal</button>
+                    <div className={`flex gap-3 pt-4 border-t mt-2 ${isDarkMode ? 'border-slate-800' : 'border-slate-100'}`}>
+                        <button type="button" onClick={() => setIsModalOpen(false)} className={`flex-1 px-4 py-2 border rounded-lg font-medium transition-colors ${
+                          isDarkMode ? 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700' : 'border-slate-300 text-slate-700 hover:bg-slate-50'
+                        }`}>Batal</button>
                         <button type="submit" className="flex-1 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 font-medium">Simpan</button>
                     </div>
                 </form>
@@ -946,15 +1123,19 @@ export const PatientList: React.FC<PatientListProps> = ({
       {/* Note Modal */}
       {isNoteModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm print:hidden">
-            <div className="bg-white rounded-2xl shadow-xl max-w-sm w-full p-6 animate-fade-in">
-                <h3 className="text-lg font-bold text-slate-800 mb-4">Catatan Usulan</h3>
+            <div className={`rounded-2xl shadow-xl max-w-sm w-full p-6 animate-fade-in ${isDarkMode ? 'bg-slate-900 text-slate-100' : 'bg-white text-slate-800'}`}>
+                <h3 className={`text-lg font-bold mb-4 ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>Catatan Usulan</h3>
                 <div className="mb-4">
-                    <p className="text-sm text-slate-600 mb-2">Pasien: <span className="font-semibold">{notePatient?.name}</span></p>
+                    <p className={`text-sm mb-2 ${isDarkMode ? 'text-slate-400' : 'text-slate-600'}`}>Pasien: <span className={`font-semibold ${isDarkMode ? 'text-slate-200' : 'text-slate-700'}`}>{notePatient?.name}</span></p>
                     <textarea 
                         value={noteContent}
                         onChange={(e) => setNoteContent(e.target.value)}
                         rows={4}
-                        className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none resize-none text-sm"
+                        className={`w-full px-3 py-2 border rounded-lg focus:ring-2 outline-none resize-none text-sm transition-all ${
+                          isDarkMode 
+                          ? 'bg-slate-950 border-slate-800 text-slate-200 focus:ring-teal-500/30 focus:border-teal-500' 
+                          : 'bg-white border-slate-300 focus:ring-teal-500/20 focus:border-teal-500 text-slate-800'
+                        }`}
                         placeholder="Tulis catatan usulan verifikasi..."
                         autoFocus
                     />
@@ -962,7 +1143,9 @@ export const PatientList: React.FC<PatientListProps> = ({
                 <div className="flex gap-3">
                     <button 
                         onClick={() => setIsNoteModalOpen(false)}
-                        className="flex-1 px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 font-medium text-sm"
+                        className={`flex-1 px-4 py-2 border rounded-lg font-medium text-sm transition-colors ${
+                          isDarkMode ? 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700' : 'border-slate-300 text-slate-700 hover:bg-slate-50'
+                        }`}
                     >
                         Batal
                     </button>
@@ -980,12 +1163,12 @@ export const PatientList: React.FC<PatientListProps> = ({
       {/* Delete Confirmation Modal */}
       {isDeleteModalOpen && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in print:hidden">
-            <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-8 text-center border border-slate-100">
-                <div className="w-20 h-20 bg-rose-50 rounded-full flex items-center justify-center mx-auto mb-6">
+            <div className={`rounded-2xl shadow-2xl max-w-sm w-full p-8 text-center border ${isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100'}`}>
+                <div className={`w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6 ${isDarkMode ? 'bg-rose-900/30' : 'bg-rose-50'}`}>
                     <span className="material-icons-round text-rose-600 text-4xl">warning_amber</span>
                 </div>
-                <h3 className="text-xl font-bold text-slate-900 mb-2">Konfirmasi Hapus</h3>
-                <p className="text-slate-600 text-sm leading-relaxed mb-8 px-2">
+                <h3 className={`text-xl font-bold mb-2 ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Konfirmasi Hapus</h3>
+                <p className={`text-sm leading-relaxed mb-8 px-2 ${isDarkMode ? 'text-slate-400' : 'text-slate-600'}`}>
                     {patientToDelete === 'bulk' 
                         ? `Apakah Anda yakin ingin menghapus ${selectedIds.size} data pasien yang dipilih? Tindakan ini tidak dapat dibatalkan.`
                         : `Apakah Anda yakin ingin menghapus data pasien ${patientToDelete?.name}? Data rekam medis dan klaim terkait akan terhapus permanen.`
@@ -997,7 +1180,9 @@ export const PatientList: React.FC<PatientListProps> = ({
                             setIsDeleteModalOpen(false);
                             setPatientToDelete(null);
                         }}
-                        className="flex-1 px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold transition-colors"
+                        className={`flex-1 px-4 py-3 rounded-xl font-bold transition-colors ${
+                          isDarkMode ? 'bg-slate-800 text-slate-300 hover:bg-slate-700' : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                        }`}
                     >
                         Batal
                     </button>

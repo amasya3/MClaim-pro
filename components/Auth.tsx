@@ -1,38 +1,59 @@
 
 import React, { useState } from 'react';
+import { User } from '../types';
 
 interface AuthProps {
-  onLogin: (hospitalName: string, verifierName: string) => void;
+  users: User[];
+  onLogin: (hospitalName: string, user: User) => void;
 }
 
-export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
+export const Auth: React.FC<AuthProps> = ({ users, onLogin }) => {
   const [isRegister, setIsRegister] = useState(false);
   const [hospitalName, setHospitalName] = useState('');
   const [email, setEmail] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [verifierName, setVerifierName] = useState('');
+  const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    // Simulation of authentication
-    // In a real app, this would hit an API
-    if ((email || username) && password) {
-      // Default values if logging in without prior registration (mock)
-      const finalHospitalName = isRegister ? hospitalName : "RSI Mabarrot MWC NU Bungah";
-      const finalVerifier = isRegister ? verifierName : "Kepala unit";
-      
-      onLogin(finalHospitalName, finalVerifier);
+    setError(null);
+
+    // If registering, we simulate successful registration and login for the prototype
+    if (isRegister) {
+      const finalHospitalName = hospitalName || "RSI Mabarrot MWC NU Bungah";
+      const newUser: User = { 
+        id: crypto.randomUUID(), 
+        username: username || 'newuser', 
+        name: verifierName || 'User Baru', 
+        role: 'Verifikator', 
+        email: email || 'user@mclaim.id' 
+      };
+      onLogin(finalHospitalName, newUser);
+      return;
+    }
+
+    // If logging in, check against the "database" (users prop)
+    const foundUser = users.find(u => 
+      (u.username === username || u.email === username) && u.password === password
+    );
+
+    if (foundUser) {
+      const finalHospitalName = "RSI Mabarrot MWC NU Bungah";
+      onLogin(finalHospitalName, foundUser);
+    } else {
+      setError("Kombinasi Email/Username dan Password tidak sesuai dengan database.");
     }
   };
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col justify-center items-center p-4">
-      <div className="bg-white rounded-2xl shadow-xl max-w-md w-full overflow-hidden flex flex-col md:flex-row">
+      <div className="bg-white rounded-2xl shadow-xl max-w-md w-full overflow-hidden flex flex-col md:flex-row border border-slate-200">
         
         <div className="p-8 w-full">
           <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center w-16 h-16 bg-green-600 rounded-full mb-4 border-2 border-green-800 shadow-sm">
+            <div className="inline-flex items-center justify-center w-16 h-16 bg-teal-600 rounded-full mb-4 border-2 border-teal-800 shadow-sm">
                 <svg className="w-10 h-10 text-white drop-shadow-sm" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="6">
                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
                 </svg>
@@ -42,6 +63,11 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
+            {error && (
+              <div className="bg-rose-50 border border-rose-200 text-rose-600 px-4 py-2 rounded-lg text-xs font-medium animate-pulse">
+                {error}
+              </div>
+            )}
             
             {isRegister && (
               <>
@@ -57,25 +83,14 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Nama Verifikator Awal</label>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Nama Lengkap</label>
                   <input 
                     type="text" 
                     required 
                     value={verifierName}
                     onChange={(e) => setVerifierName(e.target.value)}
                     className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none transition-all"
-                    placeholder="Contoh: Kepala unit"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Username</label>
-                  <input 
-                    type="text" 
-                    required 
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none transition-all"
-                    placeholder="Contoh: RSIMB"
+                    placeholder="Contoh: dr Ahmad Makhdum"
                   />
                 </div>
               </>
@@ -83,15 +98,15 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
 
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">
-                {isRegister ? 'Email Institusi' : 'Email atau Username'}
+                {isRegister ? 'Username' : 'Email atau Username'}
               </label>
               <input 
                 type="text" 
                 required 
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
                 className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none transition-all"
-                placeholder={isRegister ? "admin@rs-example.com" : "Email atau username"}
+                placeholder={isRegister ? "Contoh: RSIMB" : "admin atau email"}
               />
             </div>
 

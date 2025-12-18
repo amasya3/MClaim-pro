@@ -60,4 +60,13 @@ export interface INACBGTemplate {
   tariff?: number; // Standard tariff for Class D Hospital
 }
 
-export type ViewState = 'DASHBOARD' | 'PATIENTS' | 'PATIENT_DETAIL' | 'CBG_DATABASE';
+export interface User {
+  id: string;
+  username: string;
+  name: string;
+  role: 'Admin' | 'Verifikator' | 'Kepala Unit';
+  email: string;
+  password?: string;
+}
+
+export type ViewState = 'DASHBOARD' | 'PATIENTS' | 'PATIENT_DETAIL' | 'CBG_DATABASE' | 'USER_DATABASE';

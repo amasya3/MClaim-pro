@@ -1,14 +1,13 @@
 
 import React, { useState, useEffect } from 'react';
-import { ViewState } from '../types';
+import { ViewState, User } from '../types';
 
 interface LayoutProps {
   children: React.ReactNode;
   currentView: ViewState;
   onChangeView: (view: ViewState) => void;
   hospitalName: string;
-  verifierName: string;
-  onVerifierNameChange: (name: string) => void;
+  currentUser: User | null;
   onLogout: () => void;
 }
 
@@ -17,47 +16,26 @@ export const Layout: React.FC<LayoutProps> = ({
   currentView, 
   onChangeView, 
   hospitalName,
-  verifierName,
-  onVerifierNameChange,
+  currentUser,
   onLogout
 }) => {
-  const [isEditingVerifier, setIsEditingVerifier] = useState(false);
-  const [tempVerifierName, setTempVerifierName] = useState("");
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const navItems = [
-    { id: 'DASHBOARD', label: 'Dashboard', icon: 'dashboard' },
-    { id: 'PATIENTS', label: 'Manajemen Pasien', icon: 'people' },
-    { id: 'CBG_DATABASE', label: 'Database INA-CBGs', icon: 'library_books' },
+    { id: 'DASHBOARD', label: 'Dashboard', icon: 'dashboard', requiresAdmin: false },
+    { id: 'PATIENTS', label: 'Manajemen Pasien', icon: 'people', requiresAdmin: false },
+    { id: 'CBG_DATABASE', label: 'Database INA-CBGs', icon: 'library_books', requiresAdmin: true },
+    { id: 'USER_DATABASE', label: 'Database Users', icon: 'manage_accounts', requiresAdmin: true },
   ];
 
-  const handleStartEdit = () => {
-    if (isSidebarCollapsed) {
-        setIsSidebarCollapsed(false);
-        // Small delay to allow expansion before showing edit UI
-        setTimeout(() => {
-            setTempVerifierName(verifierName);
-            setIsEditingVerifier(true);
-        }, 150);
-    } else {
-        setTempVerifierName(verifierName);
-        setIsEditingVerifier(true);
+  // Filter navigation items based on user role
+  const visibleNavItems = navItems.filter(item => {
+    if (item.requiresAdmin) {
+      return currentUser?.role === 'Admin';
     }
-  };
-
-  const handleSaveVerifier = () => {
-    if (tempVerifierName.trim()) {
-        onVerifierNameChange(tempVerifierName);
-    }
-    setIsEditingVerifier(false);
-  };
-
-  useEffect(() => {
-    if (isSidebarCollapsed) {
-        setIsEditingVerifier(false);
-    }
-  }, [isSidebarCollapsed]);
+    return true;
+  });
 
   // Close mobile menu when navigating
   useEffect(() => {
@@ -103,7 +81,7 @@ export const Layout: React.FC<LayoutProps> = ({
         </div>
 
         <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
-          {navItems.map((item) => (
+          {visibleNavItems.map((item) => (
             <button
               key={item.id}
               onClick={() => onChangeView(item.id as ViewState)}
@@ -125,46 +103,18 @@ export const Layout: React.FC<LayoutProps> = ({
         </nav>
 
         <div className="p-4 border-t border-slate-100 shrink-0">
-          {isEditingVerifier ? (
-            <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 transition-all">
-                <label className="text-xs font-semibold text-slate-500 mb-1 block">Nama Verifikator</label>
-                <input 
-                    type="text" 
-                    value={tempVerifierName}
-                    onChange={(e) => setTempVerifierName(e.target.value)}
-                    className="w-full text-sm px-2 py-1.5 border border-slate-300 rounded-lg mb-2 focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none bg-white"
-                    autoFocus
-                    onKeyDown={(e) => e.key === 'Enter' && handleSaveVerifier()}
-                />
-                <div className="flex gap-2 justify-end">
-                    <button 
-                        onClick={() => setIsEditingVerifier(false)}
-                        className="text-xs text-slate-500 hover:text-slate-700 font-medium px-2 py-1"
-                    >
-                        Batal
-                    </button>
-                    <button 
-                        onClick={handleSaveVerifier}
-                        className="text-xs bg-teal-600 hover:bg-teal-700 text-white px-3 py-1 rounded-lg font-medium transition-colors shadow-sm"
-                    >
-                        Simpan
-                    </button>
-                </div>
-            </div>
-          ) : (
             <div className={`flex items-center ${isSidebarCollapsed ? 'flex-col justify-center gap-4' : 'gap-2'}`}>
                 <div 
                     className={`flex items-center rounded-xl hover:bg-slate-50 cursor-pointer group transition-all ${isSidebarCollapsed ? 'p-1' : 'flex-1 gap-3 px-2 py-2'}`}
-                    onClick={handleStartEdit}
-                    title="Klik untuk ubah nama verifikator"
+                    title={currentUser?.name}
                 >
                     <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-slate-500 flex-shrink-0">
                     <span className="material-icons-round text-sm">person</span>
                     </div>
                     {!isSidebarCollapsed && (
                         <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-slate-700 truncate">{verifierName}</p>
-                            <p className="text-xs text-slate-400">Verifikator</p>
+                            <p className="text-sm font-medium text-slate-700 truncate">{currentUser?.name}</p>
+                            <p className="text-xs text-slate-400">{currentUser?.role}</p>
                         </div>
                     )}
                 </div>
@@ -176,7 +126,6 @@ export const Layout: React.FC<LayoutProps> = ({
                     <span className="material-icons-round">logout</span>
                 </button>
             </div>
-          )}
         </div>
       </aside>
 

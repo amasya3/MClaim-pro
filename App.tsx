@@ -6,7 +6,8 @@ import { Dashboard } from './components/Dashboard';
 import { PatientList } from './components/PatientList';
 import { PatientDetail } from './components/PatientDetail';
 import { InaCbgDatabase } from './components/InaCbgDatabase';
-import { Patient, ViewState, PatientStatus, Gender, INACBGTemplate } from './types';
+import { UserDatabase } from './components/UserDatabase';
+import { Patient, ViewState, PatientStatus, Gender, INACBGTemplate, User } from './types';
 
 // Mock Data Initialization
 const initialPatients: Patient[] = [
@@ -150,26 +151,35 @@ const initialTemplates: INACBGTemplate[] = [
   { id: '62', code: 'S42.00', description: 'Fracture of clavicle, closed', tariff: 2322600, severity: 'I', requiredDocuments: ['SEP', 'KRONOLOGI', 'RONTGEN KLAVIKULA'] },
 ];
 
+const initialUsers: User[] = [
+  { id: 'u1', username: 'admin', name: 'Admin', role: 'Admin', email: 'admin@mclaim.id', password: '123456' },
+  { id: 'u2', username: 'hartono', name: 'Dr. Hartono', role: 'Verifikator', email: 'hartono@mclaim.id', password: 'password123' },
+  { id: 'u3', username: 'sari', name: 'Sari Rahayu', role: 'Verifikator', email: 'sari@mclaim.id', password: 'password123' },
+  { id: 'u4', username: 'makhdum', name: 'dr Ahmad Makhdum Basya', role: 'Verifikator', email: 'makhdum@mclaim.id', password: '123' },
+];
+
 const App: React.FC = () => {
   // Auth State
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [hospitalName, setHospitalName] = useState("");
-  const [verifierName, setVerifierName] = useState("Dr. Hartono");
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
 
   // App State
   const [view, setView] = useState<ViewState>('DASHBOARD');
   const [patients, setPatients] = useState<Patient[]>(initialPatients);
   const [cbgTemplates, setCbgTemplates] = useState<INACBGTemplate[]>(initialTemplates);
+  const [users, setUsers] = useState<User[]>(initialUsers);
   const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
 
-  const handleLogin = (hospital: string, verifier: string) => {
+  const handleLogin = (hospital: string, user: User) => {
     setHospitalName(hospital);
-    setVerifierName(verifier);
+    setCurrentUser(user);
     setIsAuthenticated(true);
   };
 
   const handleLogout = () => {
     setIsAuthenticated(false);
+    setCurrentUser(null);
     setView('DASHBOARD');
     setSelectedPatientId(null);
   };
@@ -217,9 +227,22 @@ const App: React.FC = () => {
     setCbgTemplates(prev => prev.filter(t => t.id !== id));
   };
 
+  // User Database Handlers
+  const handleAddUser = (user: User) => {
+    setUsers(prev => [user, ...prev]);
+  };
+
+  const handleUpdateUser = (user: User) => {
+    setUsers(prev => prev.map(u => u.id === user.id ? user : u));
+  };
+
+  const handleDeleteUser = (id: string) => {
+    setUsers(prev => prev.filter(u => u.id !== id));
+  };
+
   // Render Auth screen if not logged in
   if (!isAuthenticated) {
-    return <Auth onLogin={handleLogin} />;
+    return <Auth users={users} onLogin={handleLogin} />;
   }
 
   const activePatient = patients.find(p => p.id === selectedPatientId);
@@ -229,8 +252,7 @@ const App: React.FC = () => {
         currentView={view} 
         onChangeView={handleNavigate}
         hospitalName={hospitalName}
-        verifierName={verifierName}
-        onVerifierNameChange={setVerifierName}
+        currentUser={currentUser}
         onLogout={handleLogout}
     >
       {view === 'DASHBOARD' && (
@@ -258,6 +280,15 @@ const App: React.FC = () => {
             onAddTemplate={handleAddTemplate}
             onUpdateTemplate={handleUpdateTemplate}
             onDeleteTemplate={handleDeleteTemplate}
+        />
+      )}
+
+      {view === 'USER_DATABASE' && (
+        <UserDatabase 
+            users={users}
+            onAddUser={handleAddUser}
+            onUpdateUser={handleUpdateUser}
+            onDeleteUser={handleDeleteUser}
         />
       )}
 

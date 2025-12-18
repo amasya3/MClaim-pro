@@ -37,6 +37,10 @@ export const PatientList: React.FC<PatientListProps> = ({
   const [notePatient, setNotePatient] = useState<Patient | null>(null);
   const [noteContent, setNoteContent] = useState('');
 
+  // Delete Confirmation State
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [patientToDelete, setPatientToDelete] = useState<Patient | 'bulk' | null>(null);
+
   // Form State
   const [name, setName] = useState('');
   const [gender, setGender] = useState<Gender>(Gender.MALE);
@@ -102,10 +106,24 @@ export const PatientList: React.FC<PatientListProps> = ({
 
   const handleBulkDelete = () => {
     if (selectedIds.size === 0) return;
-    if (window.confirm(`Apakah anda yakin ingin menghapus ${selectedIds.size} data pasien yang dipilih?`)) {
+    setPatientToDelete('bulk');
+    setIsDeleteModalOpen(true);
+  };
+
+  const confirmDelete = () => {
+    if (patientToDelete === 'bulk') {
         selectedIds.forEach(id => onDeletePatient(id));
         setSelectedIds(new Set());
+    } else if (patientToDelete) {
+        onDeletePatient(patientToDelete.id);
+        if (selectedIds.has(patientToDelete.id)) {
+            const newSelected = new Set(selectedIds);
+            newSelected.delete(patientToDelete.id);
+            setSelectedIds(newSelected);
+        }
     }
+    setIsDeleteModalOpen(false);
+    setPatientToDelete(null);
   };
 
   const handleBulkExport = () => {
@@ -125,19 +143,15 @@ export const PatientList: React.FC<PatientListProps> = ({
       "Tarif INA-CBG", "Tagihan RS", "Selisih", "Note Usulan"
     ];
 
-    // Helper for safe CSV fields (handles quotes)
     const safe = (val: string | number | undefined | null) => {
         if (val === undefined || val === null) return '""';
         const str = String(val);
-        // Escape quotes by doubling them
         return `"${str.replace(/"/g, '""')}"`;
     };
 
-    // Data rows
     const rows = data.map(p => {
         const diagnosis = p.diagnoses[0];
         const diagnosisCode = diagnosis ? diagnosis.code : '-';
-        
         const lengthOfStay = calculateLengthOfStay(p.admissionDate, p.lastVisit, p.status === PatientStatus.DISCHARGED);
         const bill = p.billingAmount || 0;
         const effectiveTariff = getEffectiveTariff(p).amount;
@@ -152,12 +166,10 @@ export const PatientList: React.FC<PatientListProps> = ({
             bill,
             variance,
             safe(p.verifierNote || '')
-        ].join(";"); // Use semicolon for better Excel compatibility in ID region
+        ].join(";");
     });
 
-    // Add BOM (\uFEFF) so Excel recognizes UTF-8 encoding
     const csvContent = "\uFEFF" + headers.join(";") + "\n" + rows.join("\n");
-
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     
@@ -200,15 +212,8 @@ export const PatientList: React.FC<PatientListProps> = ({
 
   const handleDelete = (patient: Patient, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (window.confirm(`Apakah anda yakin ingin menghapus data pasien ${patient.name}?`)) {
-        onDeletePatient(patient.id);
-        // Also remove from selection if present
-        if (selectedIds.has(patient.id)) {
-            const newSelected = new Set(selectedIds);
-            newSelected.delete(patient.id);
-            setSelectedIds(newSelected);
-        }
-    }
+    setPatientToDelete(patient);
+    setIsDeleteModalOpen(true);
   };
 
   const handleOpenNote = (patient: Patient, e: React.MouseEvent) => {
@@ -230,18 +235,15 @@ export const PatientList: React.FC<PatientListProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
     const finalBilling = billingAmount ? parseFloat(billingAmount) : 0;
     const finalInaCbg = inaCbgAmount ? parseFloat(inaCbgAmount) : 0;
 
     if (editingId) {
-        // Update existing
         const originalPatient = patients.find(p => p.id === editingId);
         if (originalPatient) {
             const updatedPatient: Patient = {
                 ...originalPatient,
                 name,
-                // Preserve original MRN and BPJS since they are removed from form
                 mrn: originalPatient.mrn, 
                 bpjsNumber: originalPatient.bpjsNumber,
                 gender,
@@ -254,16 +256,14 @@ export const PatientList: React.FC<PatientListProps> = ({
             onUpdatePatientDetails(updatedPatient);
         }
     } else {
-        // Create new
         const autoMrn = `RM-${Math.floor(Math.random() * 99)}-${Math.floor(Math.random() * 999)}`;
-        
         const newPatient: Patient = {
             id: crypto.randomUUID(),
             name,
             mrn: autoMrn,
             bpjsNumber: '-',
             gender,
-            dob: '1980-01-01', // Mock default
+            dob: '1980-01-01',
             status,
             diagnoses: [],
             lastVisit: new Date().toISOString(),
@@ -280,21 +280,13 @@ export const PatientList: React.FC<PatientListProps> = ({
 
   const calculateLengthOfStay = (startDate?: string, endDate?: string, isDischarged: boolean = false) => {
     if (!startDate) return '-';
-    
     const start = new Date(startDate);
-    // If discharged, use lastVisit/discharge date, otherwise use Today
     const end = isDischarged && endDate ? new Date(endDate) : new Date();
-    
-    // Normalize to midnight to calculate pure days
     start.setHours(0, 0, 0, 0);
     end.setHours(0, 0, 0, 0);
-    
     const diffTime = end.getTime() - start.getTime();
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    
-    // Count the admission day as day 1
     const totalDays = Math.max(1, diffDays + 1);
-    
     return `${totalDays} Hari`;
   };
 
@@ -307,7 +299,6 @@ export const PatientList: React.FC<PatientListProps> = ({
     if (patient.inaCbgAmount && patient.inaCbgAmount > 0) {
         return { amount: patient.inaCbgAmount, isEstimated: false };
     }
-    
     if (patient.diagnoses.length > 0) {
         const code = patient.diagnoses[0].code;
         const template = cbgTemplates.find(t => t.code === code);
@@ -315,7 +306,6 @@ export const PatientList: React.FC<PatientListProps> = ({
             return { amount: template.tariff, isEstimated: true };
         }
     }
-
     return { amount: 0, isEstimated: false };
   };
 
@@ -334,13 +324,11 @@ export const PatientList: React.FC<PatientListProps> = ({
       if (!content) return;
 
       const lines = content.split(/\r\n|\n/);
-      
       let importedCount = 0;
       let startIndex = 0;
       let isSimrsFormat = false;
       let isShortFormat = false;
 
-      // 1. Detect Format & Start Index
       for (let i = 0; i < Math.min(lines.length, 10); i++) {
         const lineLower = lines[i].toLowerCase();
         if (lineLower.includes('no.rawat') || lineLower.includes('no.r.m.')) {
@@ -350,15 +338,12 @@ export const PatientList: React.FC<PatientListProps> = ({
         }
       }
       
-      // Fallback detection
       if (!isSimrsFormat) {
          const headerLine = lines[0].toLowerCase();
          if (headerLine.includes('nama pasien') && !headerLine.includes('no. rm')) {
-             // Short template format (No MRN/Status/etc)
              startIndex = 1;
              isShortFormat = true;
          } else {
-             // Full export format
              startIndex = headerLine.includes('no. rm') ? 1 : 0;
          }
       }
@@ -367,15 +352,12 @@ export const PatientList: React.FC<PatientListProps> = ({
         const line = lines[i].trim();
         if (!line) continue;
 
-        // Detect separator
-        let separator = ','; // Default for CSV
+        let separator = ',';
         if (line.includes('\t')) separator = '\t';
         else if (line.split(';').length > line.split(',').length) separator = ';';
 
-        // Split and clean quotes
         let parts: string[] = [];
         if (separator === ',') {
-             // Regex to split by comma ONLY if not inside quotes
              const regexMatch = line.match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g);
              if (regexMatch) {
                  parts = regexMatch.map(p => p.replace(/^"|"$/g, '').replace(/""/g, '"').trim());
@@ -390,15 +372,11 @@ export const PatientList: React.FC<PatientListProps> = ({
         let newPatient: Patient;
 
         if (isSimrsFormat) {
-            // ... (Existing SIMRS Logic) ...
             const mrn = parts[2] || `RM-${Math.floor(Math.random() * 99999)}`;
             const name = parts[3];
             if (!name) continue;
-
             const roomNumber = parts[6] || '';
             const diagCode = parts[7] || '';
-            
-            // Date Parsing: dd/mm/yyyy -> yyyy-mm-dd
             let admissionDate = new Date().toISOString().split('T')[0];
             if (parts[9]) {
                 const dateParts = parts[9].split('/');
@@ -406,20 +384,17 @@ export const PatientList: React.FC<PatientListProps> = ({
                     admissionDate = `${dateParts[2]}-${dateParts[1]}-${dateParts[0]}`;
                 }
             }
-
             let billingAmount = 0;
             if (parts.length > 10) {
                 const moneyPart = parts[parts.length - 1] || '0'; 
                 const cleanMoney = moneyPart.replace(/[Rp\s.]/g, '').replace(',', '.');
                 billingAmount = parseFloat(cleanMoney) || 0;
             }
-
             const diagnoses: any[] = [];
             if (diagCode && diagCode !== '-') {
                 const template = cbgTemplates.find(t => t.code === diagCode.toUpperCase());
                 let checklist: any[] = [];
                 let severity: 'I'|'II'|'III' = 'I';
-
                 if (template) {
                     checklist = template.requiredDocuments.map((doc, idx) => ({
                         id: `doc-${Date.now()}-${idx}`,
@@ -429,7 +404,6 @@ export const PatientList: React.FC<PatientListProps> = ({
                     }));
                     severity = template.severity;
                 }
-
                 diagnoses.push({
                     id: crypto.randomUUID(),
                     code: diagCode.toUpperCase(),
@@ -440,7 +414,6 @@ export const PatientList: React.FC<PatientListProps> = ({
                     notes: 'Imported from SIMRS'
                 });
             }
-
             newPatient = {
                 id: crypto.randomUUID(),
                 mrn,
@@ -456,35 +429,23 @@ export const PatientList: React.FC<PatientListProps> = ({
                 billingAmount,
                 inaCbgAmount: 0
             };
-
         } else if (isShortFormat) {
-            // SHORT FORMAT LOGIC (Matching new Template)
-            // 0: Name, 1: Admission, 2: Room, 3: Code, 4: Desc, 5: Bill, 6: Tariff, 7: Variance
-            
             if (parts.length < 1) continue;
-            
             const name = parts[0];
             if (!name) continue;
-
-            // Auto-generate missing fields
             const mrn = `RM-${Math.floor(Math.random() * 99)}-${Math.floor(Math.random() * 999)}`;
             const bpjsNumber = '-';
-            const gender = Gender.MALE; // Default
-            const status = PatientStatus.ADMITTED; // Default
-
+            const gender = Gender.MALE;
+            const status = PatientStatus.ADMITTED;
             const admissionDate = (parts[1] && parts[1] !== '-' && parts[1] !== '""') ? parts[1] : new Date().toISOString().split('T')[0];
             const roomNumber = (parts[2] && parts[2] !== '-' && parts[2] !== '""') ? parts[2] : '';
-
-            // Diagnosis
             const diagCode = (parts[3] && parts[3] !== '-' && parts[3] !== '""') ? parts[3] : '';
             const diagDesc = (parts[4] && parts[4] !== '-' && parts[4] !== '""') ? parts[4] : '';
-            
             const diagnoses: any[] = [];
             if (diagCode) {
                 const template = cbgTemplates.find(t => t.code === diagCode);
                 let checklist: any[] = [];
                 let severity: 'I'|'II'|'III' = 'I';
-
                 if (template) {
                     checklist = template.requiredDocuments.map((doc, idx) => ({
                         id: `doc-${Date.now()}-${idx}`,
@@ -494,7 +455,6 @@ export const PatientList: React.FC<PatientListProps> = ({
                     }));
                     severity = template.severity;
                 }
-
                 diagnoses.push({
                     id: crypto.randomUUID(),
                     code: diagCode,
@@ -505,10 +465,8 @@ export const PatientList: React.FC<PatientListProps> = ({
                     notes: 'Imported from CSV'
                 });
             }
-
             const billingAmount = parts[5] ? parseFloat(parts[5]) : 0;
             const inaCbgAmount = parts[6] ? parseFloat(parts[6]) : 0;
-
             newPatient = {
                 id: crypto.randomUUID(),
                 mrn,
@@ -524,38 +482,27 @@ export const PatientList: React.FC<PatientListProps> = ({
                 billingAmount,
                 inaCbgAmount
             };
-
         } else {
-            // FULL / EXPORT FORMAT LOGIC
             if (parts.length < 2) continue;
-
             const mrn = parts[0] || `RM-${Math.floor(Math.random() * 99)}-${Math.floor(Math.random() * 999)}`;
             const name = parts[1];
             if (!name) continue;
-
             const bpjsNumber = parts[2] || '-';
-            
             let gender = Gender.MALE;
             if (parts[3]?.toLowerCase().includes('perempuan') || parts[3]?.toLowerCase() === 'female') gender = Gender.FEMALE;
-
             let status = PatientStatus.ADMITTED;
             const statusRaw = parts[4]?.toLowerCase() || '';
             if (statusRaw.includes('jalan') || statusRaw.includes('outpatient')) status = PatientStatus.OUTPATIENT;
             else if (statusRaw.includes('pulang') || statusRaw.includes('discharged')) status = PatientStatus.DISCHARGED;
-
             const admissionDate = (parts[5] && parts[5] !== '-' && parts[5] !== '""') ? parts[5] : new Date().toISOString().split('T')[0];
             const roomNumber = (parts[6] && parts[6] !== '-' && parts[6] !== '""') ? parts[6] : '';
-
-            // Diagnosis
             const diagCode = (parts[7] && parts[7] !== '-' && parts[7] !== '""') ? parts[7] : '';
             const diagDesc = (parts[8] && parts[8] !== '-' && parts[8] !== '""') ? parts[8] : '';
-            
             const diagnoses: any[] = [];
             if (diagCode) {
                 const template = cbgTemplates.find(t => t.code === diagCode);
                 let checklist: any[] = [];
                 let severity: 'I'|'II'|'III' = 'I';
-
                 if (template) {
                     checklist = template.requiredDocuments.map((doc, idx) => ({
                         id: `doc-${Date.now()}-${idx}`,
@@ -565,7 +512,6 @@ export const PatientList: React.FC<PatientListProps> = ({
                     }));
                     severity = template.severity;
                 }
-
                 diagnoses.push({
                     id: crypto.randomUUID(),
                     code: diagCode,
@@ -576,10 +522,8 @@ export const PatientList: React.FC<PatientListProps> = ({
                     notes: 'Imported from CSV'
                 });
             }
-
             const billingAmount = parts[10] ? parseFloat(parts[10]) : 0;
             const inaCbgAmount = parts[11] ? parseFloat(parts[11]) : 0;
-
             newPatient = {
                 id: crypto.randomUUID(),
                 mrn,
@@ -596,7 +540,6 @@ export const PatientList: React.FC<PatientListProps> = ({
                 inaCbgAmount
             };
         }
-
         onAddPatient(newPatient);
         importedCount++;
       }
@@ -606,29 +549,21 @@ export const PatientList: React.FC<PatientListProps> = ({
       } else {
         alert('Gagal mengimpor data atau file kosong.');
       }
-      
       if (fileInputRef.current) fileInputRef.current.value = '';
     };
-
     reader.readAsText(file);
   };
 
   const handleDownloadTemplate = () => {
-    // Headers matching the simplified requested format
-    // Removed: No. RM, BPJS, Gender, Status, Lama Rawat
     const headers = [
       "Nama Pasien", "Tgl Masuk", "Kamar", 
       "Kode Diagnosis", "Deskripsi Diagnosis", "Tagihan RS", "Tarif INA-CBG", "Selisih"
     ];
-    
-    // Example row
     const example = [
         "Contoh Pasien", 
         new Date().toISOString().split('T')[0], "Anggrek 1", "J45.9", "Asma Bronkial", "1500000", "2000000", "500000"
     ];
-
     const csvContent = "\uFEFF" + headers.join(";") + "\n" + example.map(item => `"${item}"`).join(";");
-    
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -1036,6 +971,41 @@ export const PatientList: React.FC<PatientListProps> = ({
                         className="flex-1 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 font-medium text-sm"
                     >
                         Simpan Note
+                    </button>
+                </div>
+            </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {isDeleteModalOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in print:hidden">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-8 text-center border border-slate-100">
+                <div className="w-20 h-20 bg-rose-50 rounded-full flex items-center justify-center mx-auto mb-6">
+                    <span className="material-icons-round text-rose-600 text-4xl">warning_amber</span>
+                </div>
+                <h3 className="text-xl font-bold text-slate-900 mb-2">Konfirmasi Hapus</h3>
+                <p className="text-slate-600 text-sm leading-relaxed mb-8 px-2">
+                    {patientToDelete === 'bulk' 
+                        ? `Apakah Anda yakin ingin menghapus ${selectedIds.size} data pasien yang dipilih? Tindakan ini tidak dapat dibatalkan.`
+                        : `Apakah Anda yakin ingin menghapus data pasien ${patientToDelete?.name}? Data rekam medis dan klaim terkait akan terhapus permanen.`
+                    }
+                </p>
+                <div className="flex gap-3">
+                    <button 
+                        onClick={() => {
+                            setIsDeleteModalOpen(false);
+                            setPatientToDelete(null);
+                        }}
+                        className="flex-1 px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold transition-colors"
+                    >
+                        Batal
+                    </button>
+                    <button 
+                        onClick={confirmDelete}
+                        className="flex-1 px-4 py-3 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-bold transition-all shadow-lg shadow-rose-200 active:scale-95"
+                    >
+                        Hapus Permanen
                     </button>
                 </div>
             </div>

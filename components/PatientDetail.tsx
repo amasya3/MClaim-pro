@@ -88,7 +88,8 @@ export const PatientDetail: React.FC<PatientDetailProps> = ({
     }
 
     // 2. Fallback to AI Service
-    const aiResult = await analyzeDiagnosisCode(normalizedInput, ''); 
+    // Removed redundant second argument to match the analyzeDiagnosisCode function signature (which expects 1 string).
+    const aiResult = await analyzeDiagnosisCode(normalizedInput); 
     return {
         ...aiResult,
         source: 'Generated via AI Assistant'
